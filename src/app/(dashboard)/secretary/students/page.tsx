@@ -1,0 +1,268 @@
+"use client"
+
+import { useState } from "react"
+import { Search, Plus, Trash2, Edit, Eye, Filter } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const students = [
+  {
+    id: 1,
+    name: "Ana Silva Santos",
+    email: "ana.santos@email.com",
+    registration: "2023001",
+    class: "1st Grade A",
+    guardian: "Maria Santos",
+    contact: "(11) 99999-9999",
+  },
+  {
+    id: 2,
+    name: "Carlos Oliveira",
+    email: "carlos.oliveira@email.com",
+    registration: "2023002",
+    class: "2nd Grade A",
+    guardian: "João Oliveira",
+    contact: "(11) 88888-8888",
+  },
+  {
+    id: 3,
+    name: "Beatriz Costa",
+    email: "beatriz.costa@email.com",
+    registration: "2023003",
+    class: "3rd Grade A",
+    guardian: "Rosa Costa",
+    contact: "(11) 77777-7777",
+  },
+  {
+    id: 4,
+    name: "Pedro Santos",
+    email: "pedro.santos@email.com",
+    registration: "2023004",
+    class: "1st Grade A",
+    guardian: "José Santos",
+    contact: "(11) 99999-8888",
+  },
+  {
+    id: 5,
+    name: "Julia Ferreira",
+    email: "julia.ferreira@email.com",
+    registration: "2023005",
+    class: "2nd Grade A",
+    guardian: "Ana Ferreira",
+    contact: "(11) 88888-7777",
+  },
+  {
+    id: 6,
+    name: "Lucas Almeida",
+    email: "lucas.almeida@email.com",
+    registration: "2023006",
+    class: "3rd Grade A",
+    guardian: "Paulo Almeida",
+    contact: "(11) 77777-6666",
+  },
+  {
+    id: 7,
+    name: "Mariana Lima",
+    email: "mariana.lima@email.com",
+    registration: "2023007",
+    class: "1st Grade A",
+    guardian: "Carla Lima",
+    contact: "(11) 99999-7777",
+  },
+  {
+    id: 8,
+    name: "Rafael Souza",
+    email: "rafael.souza@email.com",
+    registration: "2023008",
+    class: "2nd Grade A",
+    guardian: "Roberto Souza",
+    contact: "(11) 88888-6666",
+  },
+  {
+    id: 9,
+    name: "Isabela Martins",
+    email: "isabela.martins@email.com",
+    registration: "2023009",
+    class: "3rd Grade A",
+    guardian: "Sandra Martins",
+    contact: "(11) 77777-5555",
+  },
+]
+
+export default function StudentsPage() {
+  const [selectedStudents, setSelectedStudents] = useState<number[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const toggleStudent = (id: number) => {
+    setSelectedStudents((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]))
+  }
+
+  const toggleAll = () => {
+    setSelectedStudents(selectedStudents.length === students.length ? [] : students.map((s) => s.id))
+  }
+
+  const getClassColor = (className: string) => {
+    if (className.includes("1st")) return "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+    if (className.includes("2nd")) return "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+    if (className.includes("3rd")) return "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300"
+    return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+  }
+
+  return (
+    <main className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Students</h1>
+        <p className="text-muted-foreground mt-2">Manage student records and information</p>
+      </div>
+
+      {/* Search and Actions Bar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4 flex-1 min-w-[300px]">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Search by name, registration or class" className="pl-10" />
+          </div>
+
+          <Select defaultValue="all">
+            <SelectTrigger className="w-[200px]">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All classes</SelectItem>
+              <SelectItem value="1a">1st Grade A</SelectItem>
+              <SelectItem value="2a">2nd Grade A</SelectItem>
+              <SelectItem value="3a">3rd Grade A</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button className="gap-2">
+          <Plus className="w-4 h-4" />
+          Add Student
+        </Button>
+      </div>
+
+      {/* Table Container */}
+      <div className="bg-card border border-border rounded-lg">
+        {/* Bulk Actions */}
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Checkbox checked={selectedStudents.length === students.length} onCheckedChange={toggleAll} />
+            <span className="text-sm text-muted-foreground">Select all</span>
+          </div>
+
+          {selectedStudents.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{selectedStudents.length} selected</span>
+              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
+                Message Guardians
+              </Button>
+              <Button variant="secondary" size="sm">
+                Export List
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground w-12"></th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Student</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Registration</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Class</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Guardian</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Contact</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student, index) => (
+                <tr key={`${student.id}-${index}`} className="border-b border-border hover:bg-muted/50 transition-colors">
+                  <td className="p-4">
+                    <Checkbox
+                      checked={selectedStudents.includes(student.id)}
+                      onCheckedChange={() => toggleStudent(student.id)}
+                    />
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarFallback className="bg-muted">
+                          {student.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{student.name}</p>
+                        <p className="text-sm text-muted-foreground">{student.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-4 text-sm">{student.registration}</td>
+                  <td className="p-4">
+                    <Badge className={getClassColor(student.class)}>{student.class}</Badge>
+                  </td>
+                  <td className="p-4 text-sm">{student.guardian}</td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                      {student.contact}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <button className="p-1.5 hover:bg-accent rounded transition-colors text-blue-600">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-accent rounded transition-colors text-orange-600">
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-accent rounded transition-colors text-red-600">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-center gap-2 p-4 border-t border-border">
+          <Button variant="ghost" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
+            Previous
+          </Button>
+
+          <Button variant={currentPage === 1 ? "default" : "ghost"} size="sm" onClick={() => setCurrentPage(1)}>
+            1
+          </Button>
+          <Button variant={currentPage === 2 ? "default" : "ghost"} size="sm" onClick={() => setCurrentPage(2)}>
+            2
+          </Button>
+          <Button variant={currentPage === 3 ? "default" : "ghost"} size="sm" onClick={() => setCurrentPage(3)}>
+            3
+          </Button>
+
+          <Button variant="ghost" size="sm" onClick={() => setCurrentPage((p) => p + 1)}>
+            Next
+          </Button>
+        </div>
+      </div>
+    </main>
+  )
+}
