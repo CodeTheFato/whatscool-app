@@ -4,10 +4,10 @@ import { prisma } from '@/lib/prisma'
 // GET /api/schools/[id] - Buscar escola por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     const school = await prisma.school.findUnique({
       where: { id },
@@ -43,10 +43,10 @@ export async function GET(
 // PUT /api/schools/[id] - Atualizar escola
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     // Verificar se a escola existe
@@ -115,10 +115,10 @@ export async function PUT(
 // DELETE /api/schools/[id] - Deletar escola
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // Verificar se a escola existe
     const existingSchool = await prisma.school.findUnique({
