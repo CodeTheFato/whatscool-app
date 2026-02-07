@@ -5,27 +5,27 @@ export function PendingAuthorizations() {
   const authorizations = [
     {
       icon: FileText,
-      title: "Early Dismissal",
-      subtitle: "John Silva - 5th Grade A",
-      status: "Pending",
+      title: "Saída Antecipada",
+      subtitle: "John Silva - 5ª Série A",
+      status: "Pendente",
       statusColor: "text-yellow-600 bg-yellow-50",
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
     },
     {
       icon: Ticket,
-      title: "Field Trip - Museum",
-      subtitle: "18/25 authorizations",
-      status: "In Progress",
+      title: "Excursão - Museu",
+      subtitle: "18/25 autorizações",
+      status: "Em Andamento",
       statusColor: "text-blue-600 bg-blue-50",
       iconBg: "bg-purple-50",
       iconColor: "text-purple-600",
     },
     {
       icon: FileText,
-      title: "Early Dismissal",
-      subtitle: "Mary Santos - 3rd Grade B",
-      status: "Pending",
+      title: "Saída Antecipada",
+      subtitle: "Mary Santos - 3ª Série B",
+      status: "Pendente",
       statusColor: "text-yellow-600 bg-yellow-50",
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
@@ -35,8 +35,8 @@ export function PendingAuthorizations() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base font-semibold">Pending Authorizations</CardTitle>
-        <button className="text-sm text-primary hover:underline">View all</button>
+        <CardTitle className="text-base font-semibold">Autorizações Pendentes</CardTitle>
+        <button className="text-sm text-primary hover:underline">Ver todas</button>
       </CardHeader>
       <CardContent className="space-y-3">
         {authorizations.map((item, index) => (

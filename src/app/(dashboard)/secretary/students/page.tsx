@@ -116,8 +116,8 @@ export default function StudentsPage() {
     <main className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Students</h1>
-        <p className="text-muted-foreground mt-2">Manage student records and information</p>
+        <h1 className="text-3xl font-bold">Alunos</h1>
+        <p className="text-muted-foreground mt-2">Gerenciar registros e informações dos alunos</p>
       </div>
 
       {/* Search and Actions Bar */}
@@ -125,7 +125,7 @@ export default function StudentsPage() {
         <div className="flex items-center gap-4 flex-1 min-w-[300px]">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Search by name, registration or class" className="pl-10" />
+            <Input placeholder="Buscar por nome, matrícula ou turma" className="pl-10" />
           </div>
 
           <Select defaultValue="all">
@@ -134,17 +134,17 @@ export default function StudentsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All classes</SelectItem>
-              <SelectItem value="1a">1st Grade A</SelectItem>
-              <SelectItem value="2a">2nd Grade A</SelectItem>
-              <SelectItem value="3a">3rd Grade A</SelectItem>
+              <SelectItem value="all">Todas as turmas</SelectItem>
+              <SelectItem value="1a">1ª Série A</SelectItem>
+              <SelectItem value="2a">2ª Série A</SelectItem>
+              <SelectItem value="3a">3ª Série A</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <Button className="gap-2">
           <Plus className="w-4 h-4" />
-          Add Student
+          Adicionar Aluno
         </Button>
       </div>
 
@@ -154,17 +154,17 @@ export default function StudentsPage() {
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Checkbox checked={selectedStudents.length === students.length} onCheckedChange={toggleAll} />
-            <span className="text-sm text-muted-foreground">Select all</span>
+            <span className="text-sm text-muted-foreground">Selecionar todos</span>
           </div>
 
           {selectedStudents.length > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">{selectedStudents.length} selected</span>
+              <span className="text-sm text-muted-foreground">{selectedStudents.length} selecionado(s)</span>
               <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
-                Message Guardians
+                Mensagem aos Responsáveis
               </Button>
               <Button variant="secondary" size="sm">
-                Export List
+                Exportar Lista
               </Button>
             </div>
           )}
@@ -176,12 +176,12 @@ export default function StudentsPage() {
             <thead className="bg-muted/50">
               <tr>
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground w-12"></th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Student</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Registration</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Class</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Guardian</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Contact</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Actions</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Aluno</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Matrícula</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Turma</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Responsável</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Contato</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -245,7 +245,7 @@ export default function StudentsPage() {
         {/* Pagination */}
         <div className="flex items-center justify-center gap-2 p-4 border-t border-border">
           <Button variant="ghost" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
-            Previous
+            Anterior
           </Button>
 
           <Button variant={currentPage === 1 ? "default" : "ghost"} size="sm" onClick={() => setCurrentPage(1)}>
@@ -259,7 +259,7 @@ export default function StudentsPage() {
           </Button>
 
           <Button variant="ghost" size="sm" onClick={() => setCurrentPage((p) => p + 1)}>
-            Next
+            Próximo
           </Button>
         </div>
       </div>

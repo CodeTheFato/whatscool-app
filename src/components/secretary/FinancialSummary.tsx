@@ -5,25 +5,25 @@ export function FinancialSummary() {
   const financialItems = [
     {
       icon: CheckCircle2,
-      label: "Paid",
-      value: "$142,500",
-      subtitle: "285 students",
+      label: "Pago",
+      value: "R$ 142.500",
+      subtitle: "285 alunos",
       iconBg: "bg-green-50",
       iconColor: "text-green-600",
     },
     {
       icon: Clock,
-      label: "Pending",
-      value: "$21,000",
-      subtitle: "42 students",
+      label: "Pendente",
+      value: "R$ 21.000",
+      subtitle: "42 alunos",
       iconBg: "bg-yellow-50",
       iconColor: "text-yellow-600",
     },
     {
       icon: AlertCircle,
-      label: "Overdue",
-      value: "$7,500",
-      subtitle: "15 students",
+      label: "Atrasado",
+      value: "R$ 7.500",
+      subtitle: "15 alunos",
       iconBg: "bg-red-50",
       iconColor: "text-red-600",
     },
@@ -32,8 +32,8 @@ export function FinancialSummary() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base font-semibold">Financial Summary</CardTitle>
-        <button className="text-sm text-primary hover:underline">View all</button>
+        <CardTitle className="text-base font-semibold">Resumo Financeiro</CardTitle>
+        <button className="text-sm text-primary hover:underline">Ver todos</button>
       </CardHeader>
       <CardContent className="space-y-4">
         {financialItems.map((item) => (
