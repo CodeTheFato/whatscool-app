@@ -5752,7 +5752,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pg@npm:^8.16.3":
+"pg@npm:^8.16.3, pg@npm:^8.18.0":
   version: 8.18.0
   resolution: "pg@npm:8.18.0"
   dependencies:
@@ -7168,6 +7168,7 @@ __metadata:
     lucide-react: "npm:^0.554.0"
     next: "npm:^16.1.6"
     next-auth: "npm:^4.24.13"
+    pg: "npm:^8.18.0"
     prisma: "npm:^7.3.0"
     react: "npm:^19.2.4"
     react-dom: "npm:^19.2.4"
