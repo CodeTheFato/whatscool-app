@@ -2,32 +2,70 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Building2 } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
+import { schoolFormSchema, type SchoolFormValues } from "@/lib/validations/school"
+import { StepIndicator } from "@/components/admin/schools/StepIndicator"
+import { SchoolFormContent } from "@/components/admin/schools/SchoolFormContent"
+import { StepNavigation } from "@/components/admin/schools/StepNavigation"
+import { useSchoolFormSteps } from "@/hooks/useSchoolFormSteps"
+import { FORM_STEPS } from "@/components/admin/schools/constants"
 
 export default function NewSchoolPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+  const form = useForm<SchoolFormValues>({
+    resolver: zodResolver(schoolFormSchema),
+    defaultValues: {
+      name: "",
+      cnpj: "",
+      schoolType: "",
+      studentCount: "",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      phone: "",
+      email: "",
+      whatsapp: "",
+      whatsappType: undefined,
+      timezone: "America/Sao_Paulo",
+      logo: "",
+    },
+  })
 
-    // Mock save
-    setTimeout(() => {
+  const { currentStep, handleNext, handlePrevious, handleKeyDown } = useSchoolFormSteps(form)
+
+  const onSubmit = async (data: SchoolFormValues) => {
+    // Proteção: só permite submit no último step
+    if (currentStep !== FORM_STEPS.length) {
+      toast.warning("Você precisa estar no último step para salvar")
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      // TODO: Implementar chamada à API
+
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+
       toast.success("Escola cadastrada com sucesso!")
       router.push("/admin/schools")
-    }, 1500)
+    } catch (error) {
+      toast.error("Erro ao cadastrar escola")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-6 max-w-4xl mx-auto">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/admin/schools">
           <Button variant="ghost" size="icon">
@@ -42,169 +80,23 @@ export default function NewSchoolPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Informações da Escola
-            </CardTitle>
-            <CardDescription>
-              Preencha os dados básicos da instituição
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Informações Básicas */}
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome da Escola *</Label>
-                <Input
-                  id="name"
-                  placeholder="Escola Municipal..."
-                  required
-                />
-              </div>
+      {/* Progress Indicator */}
+      <StepIndicator currentStep={currentStep} />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cnpj">CNPJ</Label>
-                  <Input
-                    id="cnpj"
-                    placeholder="00.000.000/0000-00"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone *</Label>
-                  <Input
-                    id="phone"
-                    placeholder="+55 11 98765-4321"
-                    required
-                  />
-                </div>
-              </div>
+      {/* Form Content */}
+      <div onKeyDown={handleKeyDown}>
+        <SchoolFormContent currentStep={currentStep} form={form} />
 
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="contato@escola.com"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Endereço */}
-            <div className="border-t pt-4 space-y-4">
-              <h3 className="font-semibold">Endereço</h3>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Logradouro *</Label>
-                <Input
-                  id="address"
-                  placeholder="Rua, Avenida..."
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="number">Número *</Label>
-                  <Input
-                    id="number"
-                    placeholder="123"
-                    required
-                  />
-                </div>
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="complement">Complemento</Label>
-                  <Input
-                    id="complement"
-                    placeholder="Sala, Bloco..."
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="city">Cidade *</Label>
-                  <Input
-                    id="city"
-                    placeholder="São Paulo"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="state">Estado *</Label>
-                  <Select required>
-                    <SelectTrigger id="state">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SP">São Paulo</SelectItem>
-                      <SelectItem value="RJ">Rio de Janeiro</SelectItem>
-                      <SelectItem value="MG">Minas Gerais</SelectItem>
-                      <SelectItem value="PR">Paraná</SelectItem>
-                      <SelectItem value="RS">Rio Grande do Sul</SelectItem>
-                      <SelectItem value="BA">Bahia</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="cep">CEP *</Label>
-                <Input
-                  id="cep"
-                  placeholder="00000-000"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Configurações */}
-            <div className="border-t pt-4 space-y-4">
-              <h3 className="font-semibold">Configurações Iniciais</h3>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="schoolType">Tipo de Escola</Label>
-                  <Select>
-                    <SelectTrigger id="schoolType">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">Pública</SelectItem>
-                      <SelectItem value="private">Privada</SelectItem>
-                      <SelectItem value="mixed">Mista</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="studentCount">Número de Alunos</Label>
-                  <Input
-                    id="studentCount"
-                    type="number"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Actions */}
-        <div className="flex items-center justify-end gap-4 mt-6">
-          <Link href="/admin/schools">
-            <Button variant="outline" type="button">
-              Cancelar
-            </Button>
-          </Link>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Salvando..." : "Cadastrar Escola"}
-          </Button>
-        </div>
-      </form>
+        {/* Navigation */}
+        <StepNavigation
+          currentStep={currentStep}
+          isLoading={isLoading}
+          form={form}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          onSubmit={onSubmit}
+        />
+      </div>
     </main>
   )
 }
