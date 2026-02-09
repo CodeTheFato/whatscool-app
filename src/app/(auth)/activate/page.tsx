@@ -14,41 +14,81 @@ export default function ActivatePage() {
   const router = useRouter()
   const [step, setStep] = useState<1 | 2>(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [isResending, setIsResending] = useState(false)
 
   // Step 1 - Validar convite
   const [token, setToken] = useState("")
   const [email, setEmail] = useState("")
 
-  // Step 2 - Dados do usuário (mock pre-filled)
+  // Step 2 - Dados do usuário
   const [inviteData, setInviteData] = useState<any>(null)
-  const [name, setName] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+
+  const handleResendCode = async () => {
+    if (!email) {
+      toast.error("Preencha o e-mail para reenviar o código")
+      return
+    }
+
+    setIsResending(true)
+
+    try {
+      const response = await fetch("/api/users/resend-activation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Erro ao reenviar código")
+      }
+
+      toast.success("Código reenviado com sucesso! Verifique seu e-mail.")
+    } catch (error) {
+      console.error("Error resending code:", error)
+      toast.error(error instanceof Error ? error.message : "Erro ao reenviar código")
+    } finally {
+      setIsResending(false)
+    }
+  }
 
   const handleValidateInvite = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
-    // Mock validation
-    setTimeout(() => {
-      if (token && email) {
-        // Simular dados do convite
-        const mockInvite = {
-          token,
-          email,
-          role: "PARENT",
-          schoolId: "school-123",
-          schoolName: "Colégio Bosque Azul"
-        }
-        setInviteData(mockInvite)
-        setEmail(mockInvite.email)
+    try {
+      const response = await fetch("/api/users/validate-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, email }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Token inválido")
+      }
+
+      const data = await response.json()
+
+      if (data.valid) {
+        setInviteData(data.user)
         toast.success("Convite validado com sucesso!")
         setStep(2)
       } else {
-        toast.error("Preencha todos os campos")
+        toast.error("Token inválido ou expirado")
       }
+    } catch (error) {
+      console.error("Error validating invite:", error)
+      toast.error(error instanceof Error ? error.message : "Erro ao validar convite")
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   const handleActivateAccount = async (e: React.FormEvent) => {
@@ -66,24 +106,48 @@ export default function ActivatePage() {
 
     setIsLoading(true)
 
-    // Mock activation
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/users/activate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token,
+          email,
+          password,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Erro ao ativar conta")
+      }
+
+      const data = await response.json()
       toast.success("Conta ativada com sucesso!")
 
-      // Redirecionar baseado no role
-      if (inviteData?.role === "PARENT") {
-        router.push("/parents")
-      } else if (inviteData?.role === "ADMIN") {
-        router.push("/onboarding")
-      } else if (inviteData?.role === "SECRETARY") {
-        router.push("/secretary")
-      } else if (inviteData?.role === "TEACHER") {
-        router.push("/teacher")
-      } else {
-        router.push("/secretary")
-      }
+      // Aguardar um pouco antes de redirecionar
+      setTimeout(() => {
+        // Redirecionar baseado no role
+        if (inviteData?.role === "PARENT") {
+          router.push("/login?email=" + encodeURIComponent(email))
+        } else if (inviteData?.role === "ADMIN") {
+          router.push("/login?email=" + encodeURIComponent(email))
+        } else if (inviteData?.role === "SECRETARY") {
+          router.push("/login?email=" + encodeURIComponent(email))
+        } else if (inviteData?.role === "TEACHER") {
+          router.push("/login?email=" + encodeURIComponent(email))
+        } else {
+          router.push("/login?email=" + encodeURIComponent(email))
+        }
+      }, 1000)
+    } catch (error) {
+      console.error("Error activating account:", error)
+      toast.error(error instanceof Error ? error.message : "Erro ao ativar conta")
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -145,12 +209,12 @@ export default function ActivatePage() {
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">
-            {step === 1 ? "Ativar Conta" : "Criar Credenciais"}
+            {step === 1 ? "Ativar Conta" : "Criar Sua Senha"}
           </h1>
           <p className="text-muted-foreground">
             {step === 1
               ? "Valide o código enviado para você"
-              : `Bem-vindo ao ${inviteData?.schoolName || "Whatscool"}`}
+              : "Defina uma senha segura para acessar sua conta"}
           </p>
         </div>
 
@@ -171,6 +235,9 @@ export default function ActivatePage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Código enviado por e-mail ou WhatsApp
+              </p>
+              <p className="text-xs text-blue-600 font-medium">
+                Para testes, utilize o código: <strong>123456</strong>
               </p>
             </div>
 
@@ -199,6 +266,17 @@ export default function ActivatePage() {
               )}
             </Button>
 
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={isResending || !email}
+                className="text-sm text-foreground/90 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed underline-offset-4 hover:underline font-medium"
+              >
+                {isResending ? "Reenviando..." : "Não recebeu o código? Reenviar por e-mail"}
+              </button>
+            </div>
+
             <Button
               type="button"
               variant="ghost"
@@ -212,30 +290,21 @@ export default function ActivatePage() {
           <form onSubmit={handleActivateAccount} className="space-y-5">
             {inviteData && (
               <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 mb-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <School className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm font-medium text-blue-900">{inviteData.schoolName}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <School className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-900">{inviteData.schoolName}</span>
+                    </div>
+                    <Badge variant="secondary">{inviteData.role}</Badge>
                   </div>
-                  <Badge variant="secondary">{inviteData.role}</Badge>
+                  <div className="flex items-center gap-2 pt-2">
+                    <User className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-900">{inviteData.name}</span>
+                  </div>
                 </div>
               </div>
             )}
-
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">Nome Completo</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="name"
-                  placeholder="Seu nome completo"
-                  className="pl-10 h-11"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm font-medium">Criar Senha</Label>

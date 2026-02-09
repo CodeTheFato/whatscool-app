@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter, usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
@@ -14,24 +15,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Bell, User, Settings, LogOut, School } from "lucide-react"
 import { toast } from "sonner"
 
 export default function Header() {
   const router = useRouter()
   const pathname = usePathname()
+  const { data: session, status } = useSession()
 
-  // Mock user data - em produção viria de um context/hook de auth
-  const user = {
-    name: "João Silva",
-    email: "joao@escola.com",
-    avatar: "",
-    role: getRoleFromPath(pathname),
-  }
-
-  const school = {
-    name: "Colégio Bosque Azul",
-  }
+  const isLoading = status === "loading"
 
   function getRoleFromPath(path: string) {
     if (path.startsWith("/admin")) return "Administrador"
@@ -41,6 +34,8 @@ export default function Header() {
     if (path.startsWith("/student")) return "Aluno"
     return "Usuário"
   }
+
+  const isAdmin = session?.user?.role === "ADMIN"
 
   const handleLogout = () => {
     toast.success("Logout realizado com sucesso!")
@@ -54,13 +49,27 @@ export default function Header() {
 
       <div className="flex flex-1 items-center justify-between">
         {/* School Info */}
-        <div className="flex items-center gap-2">
-          <School className="h-5 w-5 text-primary" />
-          <div className="hidden md:block">
-            <p className="text-sm font-semibold">{school.name}</p>
-            <p className="text-xs text-muted-foreground">{user.role}</p>
+        {isLoading ? (
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-5 rounded" />
+            <div className="hidden md:flex flex-col gap-1">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-24" />
+            </div>
           </div>
-        </div>
+        ) : !isAdmin && session?.user?.schoolName ? (
+          <div className="flex items-center gap-2">
+            <School className="h-5 w-5 text-primary" />
+            <div className="hidden md:block">
+              <p className="text-sm font-semibold">{session.user.schoolName}</p>
+              <p className="text-xs text-muted-foreground">{getRoleFromPath(pathname)}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold">{getRoleFromPath(pathname)}</p>
+          </div>
+        )}
 
         {/* Right Side - User Menu */}
         <div className="flex items-center gap-3">
@@ -77,28 +86,38 @@ export default function Header() {
           {/* User Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 gap-2 px-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="bg-primary text-white">
-                    {user.name.split(" ").map(n => n[0]).join("")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="hidden md:flex flex-col items-start">
-                  <span className="text-sm font-medium">{user.name}</span>
-                  <span className="text-xs text-muted-foreground">{user.email}</span>
-                </div>
-              </Button>
+              {isLoading ? (
+                <Button variant="ghost" className="relative h-10 gap-2 px-2">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <div className="hidden md:flex flex-col gap-1">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                </Button>
+              ) : (
+                <Button variant="ghost" className="relative h-10 gap-2 px-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={session?.user?.avatar || ""} alt={session?.user?.name || ""} />
+                    <AvatarFallback className="bg-primary text-white">
+                      {session?.user?.name?.split(" ").map(n => n[0]).join("") || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="hidden md:flex flex-col items-start">
+                    <span className="text-sm font-medium">{session?.user?.name}</span>
+                    <span className="text-xs text-muted-foreground">{session?.user?.email}</span>
+                  </div>
+                </Button>
+              )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user.name}</p>
+                  <p className="text-sm font-medium leading-none">{session?.user?.name}</p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    {user.email}
+                    {session?.user?.email}
                   </p>
                   <Badge variant="secondary" className="w-fit mt-1">
-                    {user.role}
+                    {getRoleFromPath(pathname)}
                   </Badge>
                 </div>
               </DropdownMenuLabel>

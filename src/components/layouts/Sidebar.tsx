@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import {
   Home,
   Users,
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { sidebarMenus, type UserRole } from "@/config/sidebar-menus"
 
@@ -70,7 +72,9 @@ const roleLabels = {
 export default function AppSidebar() {
   const pathname = usePathname()
   const { state } = useSidebar()
+  const { data: session, status } = useSession()
   const isCollapsed = state === "collapsed"
+  const isLoading = status === "loading"
 
   // Determine user role from pathname
   const getUserRole = (): UserRole | null => {
@@ -84,13 +88,6 @@ export default function AppSidebar() {
 
   const userRole = getUserRole()
   const menuItems = userRole ? sidebarMenus[userRole] : []
-
-  // Mock user data
-  const user = {
-    name: "João Silva",
-    email: "joao@escola.com",
-    avatar: "",
-  }
 
   return (
     <Sidebar collapsible="icon" className="border-r transition-all duration-300 ease-in-out">
@@ -169,44 +166,57 @@ export default function AppSidebar() {
 
       {/* Footer */}
       <SidebarFooter className="border-t p-3 transition-all duration-300">
-        <TooltipProvider delayDuration={0}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className={`flex items-center rounded-lg bg-accent/50 p-2 transition-all duration-300 ${isCollapsed ? "justify-center" : "gap-3"
-                }`}>
-                <Avatar className="h-10 w-10 shrink-0 border-2 border-background transition-all duration-300">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white font-semibold text-sm">
-                    {user.name.split(" ").map(n => n[0]).join("")}
-                  </AvatarFallback>
-                </Avatar>
-                {!isCollapsed && (
-                  <div className="flex-1 min-w-0 animate-in fade-in slide-in-from-left-2 duration-200">
-                    <p className="text-sm font-semibold truncate">{user.name}</p>
-                    {userRole && (
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${roleColors[userRole]}`}
-                      >
-                        {roleLabels[userRole]}
-                      </Badge>
-                    )}
-                  </div>
-                )}
+        {isLoading ? (
+          <div className={`flex items-center rounded-lg bg-accent/50 p-2 ${isCollapsed ? "justify-center" : "gap-3"
+            }`}>
+            <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+            {!isCollapsed && (
+              <div className="flex-1 space-y-1">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
               </div>
-            </TooltipTrigger>
-            {isCollapsed && (
-              <TooltipContent side="right">
-                <div className="space-y-1">
-                  <p className="font-semibold">{user.name}</p>
-                  {userRole && (
-                    <p className="text-xs text-muted-foreground">{roleLabels[userRole]}</p>
+            )}
+          </div>
+        ) : (
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={`flex items-center rounded-lg bg-accent/50 p-2 transition-all duration-300 ${isCollapsed ? "justify-center" : "gap-3"
+                  }`}>
+                  <Avatar className="h-10 w-10 shrink-0 border-2 border-background transition-all duration-300">
+                    <AvatarImage src={session?.user?.avatar || ""} alt={session?.user?.name || ""} />
+                    <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white font-semibold text-sm">
+                      {session?.user?.name?.split(" ").map(n => n[0]).join("") || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  {!isCollapsed && (
+                    <div className="flex-1 min-w-0 animate-in fade-in slide-in-from-left-2 duration-200">
+                      <p className="text-sm font-semibold truncate">{session?.user?.name}</p>
+                      {userRole && (
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${roleColors[userRole]}`}
+                        >
+                          {roleLabels[userRole]}
+                        </Badge>
+                      )}
+                    </div>
                   )}
                 </div>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
+              </TooltipTrigger>
+              {isCollapsed && (
+                <TooltipContent side="right">
+                  <div className="space-y-1">
+                    <p className="font-semibold">{session?.user?.name}</p>
+                    {userRole && (
+                      <p className="text-xs text-muted-foreground">{roleLabels[userRole]}</p>
+                    )}
+                  </div>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </SidebarFooter>
     </Sidebar>
   )

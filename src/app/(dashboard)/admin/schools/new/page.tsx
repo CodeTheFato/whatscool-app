@@ -50,14 +50,25 @@ export default function NewSchoolPage() {
 
     setIsLoading(true)
     try {
-      // TODO: Implementar chamada à API
+      const response = await fetch("/api/schools", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      })
 
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erro ao cadastrar escola")
+      }
 
       toast.success("Escola cadastrada com sucesso!")
       router.push("/admin/schools")
     } catch (error) {
-      toast.error("Erro ao cadastrar escola")
+      const message = error instanceof Error ? error.message : "Erro ao cadastrar escola"
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }

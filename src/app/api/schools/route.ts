@@ -6,25 +6,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     const {
-      schoolName,
-      taxId,
+      name,
+      cnpj,
       schoolType,
       studentCount,
+      address,
       city,
       state,
-      mainEmail,
-      officePhone,
+      zipCode,
+      phone,
+      email,
       whatsapp,
       whatsappType,
       timezone,
-      responsibleName,
-      role,
-      loginEmail,
-      password,
+      logo,
     } = body
 
     // Validações básicas
-    if (!schoolName || !city || !state || !mainEmail || !officePhone || !whatsapp || !responsibleName || !loginEmail || !password) {
+    if (!name || !city || !state || !phone || !email) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -32,80 +31,48 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se já existe uma escola com o mesmo CNPJ
-    if (taxId) {
+    if (cnpj) {
       const existingSchool = await prisma.school.findUnique({
-        where: { cnpj: taxId }
+        where: { cnpj }
       })
 
       if (existingSchool) {
         return NextResponse.json(
-          { error: 'School with this Tax ID already exists' },
+          { error: 'School with this CNPJ already exists' },
           { status: 409 }
         )
       }
     }
 
-    // Nota: Validação de email único será feita após criar a escola
-    // pois o email é único apenas dentro do contexto de uma escola
-
-    // TODO: Instalar bcrypt e fazer hash da senha
-    // import { hash } from 'bcrypt'
-    // const hashedPassword = await hash(password, 10)
-    const hashedPassword = password // TEMPORÁRIO: Remover em produção
-
-    // Mapear role do formulário para o enum UserRole
-    // director, coordinator, secretary, it, other -> SECRETARY (admin)
-    const userRole = 'SECRETARY' // Todos os administradores são SECRETARY
-
-    // Criar escola e usuário administrador em uma transação
-    const result = await prisma.$transaction(async (tx) => {
-      // Criar escola
-      const school = await tx.school.create({
-        data: {
-          name: schoolName,
-          cnpj: taxId || null,
-          schoolType: schoolType || null,
-          studentCount: studentCount || null,
-          address: '', // TODO: Adicionar campo address no formulário
-          city,
-          state,
-          zipCode: '', // TODO: Adicionar campo zipCode no formulário
-          email: mainEmail,
-          phone: officePhone,
-          whatsapp: whatsapp || null,
-          whatsappType: whatsappType || null,
-          timezone: timezone || 'America/Sao_Paulo',
-        }
-      })
-
-      // Criar usuário administrador
-      const user = await tx.user.create({
-        data: {
-          schoolId: school.id,
-          name: responsibleName,
-          email: loginEmail,
-          password: hashedPassword,
-          role: userRole,
-          isActive: true,
-        }
-      })
-
-      return { school, user }
+    // Criar escola
+    const school = await prisma.school.create({
+      data: {
+        name,
+        cnpj: cnpj || null,
+        schoolType: schoolType || null,
+        studentCount: studentCount || null,
+        address: address || null,
+        city,
+        state,
+        zipCode: zipCode || null,
+        email,
+        phone,
+        whatsapp: whatsapp || null,
+        whatsappType: whatsappType || null,
+        timezone: timezone || 'America/Sao_Paulo',
+        logo: logo || null,
+      }
     })
 
     return NextResponse.json(
       {
-        message: 'School registered successfully',
+        message: 'School created successfully',
         school: {
-          id: result.school.id,
-          name: result.school.name,
-          email: result.school.email,
-        },
-        user: {
-          id: result.user.id,
-          name: result.user.name,
-          email: result.user.email,
-          role: result.user.role,
+          id: school.id,
+          name: school.name,
+          email: school.email,
+          city: school.city,
+          state: school.state,
         }
       },
       { status: 201 }
@@ -175,6 +142,13 @@ export async function GET(request: NextRequest) {
           logo: true,
           createdAt: true,
           updatedAt: true,
+          _count: {
+            select: {
+              students: true,
+              teachers: true,
+              classes: true,
+            },
+          },
         }
       }),
       prisma.school.count({ where })

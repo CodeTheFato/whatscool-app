@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,46 +17,49 @@ import {
   AlertCircle
 } from "lucide-react"
 
+interface School {
+  id: string
+  name: string
+  city: string
+  state: string
+  email: string
+  phone: string
+  createdAt: string
+  _count?: {
+    students: number
+    teachers: number
+    classes: number
+  }
+}
+
 export default function AdminDashboard() {
-  // Mock data - Admin gerencia múltiplas escolas
-  const schools = [
-    {
-      id: 1,
-      name: "Colégio Bosque Azul",
-      city: "Belo Horizonte",
-      state: "MG",
-      students: 324,
-      teachers: 28,
-      classes: 12,
-      status: "active",
-    },
-    {
-      id: 2,
-      name: "Escola Villa Lobos",
-      city: "São Paulo",
-      state: "SP",
-      students: 486,
-      teachers: 35,
-      classes: 18,
-      status: "active",
-    },
-    {
-      id: 3,
-      name: "Instituto Educacional Santos",
-      city: "Rio de Janeiro",
-      state: "RJ",
-      students: 215,
-      teachers: 22,
-      classes: 9,
-      status: "pending",
-    },
-  ]
+  const [schools, setSchools] = useState<School[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetchSchools()
+  }, [])
+
+  const fetchSchools = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch("/api/schools")
+      if (response.ok) {
+        const data = await response.json()
+        setSchools(data.schools || [])
+      }
+    } catch (error) {
+      console.error("Error fetching schools:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const totalStats = {
     schools: schools.length,
-    students: schools.reduce((acc, s) => acc + s.students, 0),
-    teachers: schools.reduce((acc, s) => acc + s.teachers, 0),
-    classes: schools.reduce((acc, s) => acc + s.classes, 0),
+    students: schools.reduce((acc, s) => acc + (s._count?.students || 0), 0),
+    teachers: schools.reduce((acc, s) => acc + (s._count?.teachers || 0), 0),
+    classes: schools.reduce((acc, s) => acc + (s._count?.classes || 0), 0),
   }
 
   const recentActivities = [
@@ -180,45 +183,64 @@ export default function AdminDashboard() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {schools.map((school) => (
-              <Link key={school.id} href={`/admin/schools/${school.id}`}>
-                <div className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-                      <Building2 className="h-6 w-6" />
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+                      <div className="h-3 w-32 bg-muted animate-pulse rounded" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{school.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {school.city} - {school.state}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold">{school.students}</p>
-                      <p className="text-xs text-muted-foreground">Alunos</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold">{school.teachers}</p>
-                      <p className="text-xs text-muted-foreground">Professores</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold">{school.classes}</p>
-                      <p className="text-xs text-muted-foreground">Turmas</p>
-                    </div>
-                    <Badge
-                      variant={school.status === "active" ? "default" : "secondary"}
-                    >
-                      {school.status === "active" ? "Ativa" : "Pendente"}
-                    </Badge>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>
-              </Link>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : schools.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Nenhuma escola cadastrada ainda.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {schools.map((school) => (
+                <Link key={school.id} href={`/admin/schools/${school.id}`}>
+                  <div className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+                        <Building2 className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{school.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {school.city} - {school.state}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold">{school._count?.students || 0}</p>
+                        <p className="text-xs text-muted-foreground">Alunos</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold">{school._count?.teachers || 0}</p>
+                        <p className="text-xs text-muted-foreground">Professores</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold">{school._count?.classes || 0}</p>
+                        <p className="text-xs text-muted-foreground">Turmas</p>
+                      </div>
+                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                        Ativa
+                      </Badge>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -237,8 +259,8 @@ export default function AdminDashboard() {
               return (
                 <div key={index} className="flex items-start gap-4 pb-4 border-b last:border-0">
                   <div className={`p-2 rounded-full ${activity.type === "success" ? "bg-green-100 text-green-600" :
-                      activity.type === "warning" ? "bg-yellow-100 text-yellow-600" :
-                        "bg-blue-100 text-blue-600"
+                    activity.type === "warning" ? "bg-yellow-100 text-yellow-600" :
+                      "bg-blue-100 text-blue-600"
                     }`}>
                     <Icon className="h-4 w-4" />
                   </div>
