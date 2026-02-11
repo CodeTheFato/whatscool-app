@@ -31,6 +31,7 @@ export const sidebarMenus: Record<UserRole, MenuItem[]> = {
   parents: [
     { label: 'Painel', href: '/parents', icon: 'Home' },
     { label: 'Filhos', href: '/parents/children', icon: 'Users' },
+    { label: 'Mensagens', href: '/parents/messages', icon: 'MessageSquare' },
     { label: 'Notas', href: '/parents/grades', icon: 'FileText' },
     { label: 'Financeiro', href: '/parents/financial', icon: 'DollarSign' },
   ],
