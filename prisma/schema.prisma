@@ -40,8 +40,10 @@ model School {
   activities       Activity[]
   financialRecords FinancialRecord[]
   authorizations   Authorization[]
-  messages         Message[]
+  directMessages   DirectMessage[] // Renamed from Message
   schedules        Schedule[]
+  announcements    Announcement[]
+  conversations    Conversation[]
 
   @@map("schools")
 }
@@ -61,15 +63,19 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  school                School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student               Student?
-  teacher               Teacher?
-  parent                Parent?
-  sentMessages          Message[]       @relation("SentMessages")
-  receivedMessages      Message[]       @relation("ReceivedMessages")
-  createdAuthorizations Authorization[] @relation("CreatedAuthorizations")
-  accounts              Account[]
-  sessions              Session[]
+  school                   School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student                  Student?
+  teacher                  Teacher?
+  parent                   Parent?
+  sentDirectMessages       DirectMessage[]           @relation("SentDirectMessages")
+  receivedDirectMessages   DirectMessage[]           @relation("ReceivedDirectMessages")
+  createdAuthorizations    Authorization[]           @relation("CreatedAuthorizations")
+  createdAnnouncements     Announcement[]            @relation("CreatedAnnouncements")
+  announcementRecipients   AnnouncementRecipient[]
+  conversationParticipants ConversationParticipant[]
+  conversationMessages     ConversationMessage[]
+  accounts                 Account[]
+  sessions                 Session[]
 
   @@unique([email, schoolId])
   @@index([schoolId, email])
@@ -154,6 +160,7 @@ model Student {
   attendances    Attendance[]
   activities     ActivitySubmission[]
   authorizations Authorization[]
+  announcements  Announcement[]
 
   @@unique([schoolId, registrationId])
   @@index([schoolId, status])
@@ -236,13 +243,14 @@ model Class {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
-  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  teacher     Teacher?     @relation(fields: [teacherId], references: [id])
-  teacherId   String?      @map("teacher_id")
-  students    Student[]
-  subjects    Subject[]
-  attendances Attendance[]
-  schedules   Schedule[]
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacher       Teacher?       @relation(fields: [teacherId], references: [id])
+  teacherId     String?        @map("teacher_id")
+  students      Student[]
+  subjects      Subject[]
+  attendances   Attendance[]
+  schedules     Schedule[]
+  announcements Announcement[]
 
   @@unique([schoolId, name, academicYear])
   @@index([schoolId, academicYear])
@@ -465,8 +473,8 @@ enum AuthorizationStatus {
   REJECTED
 }
 
-// ==================== MESSAGES ====================
-model Message {
+// ==================== DIRECT MESSAGES (1:1 legacy) ====================
+model DirectMessage {
   id         String    @id @default(uuid())
   schoolId   String    @map("school_id")
   senderId   String    @map("sender_id")
@@ -480,12 +488,134 @@ model Message {
 
   // Relations
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  sender   User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender   User   @relation("SentDirectMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User   @relation("ReceivedDirectMessages", fields: [receiverId], references: [id], onDelete: Cascade)
 
   @@index([schoolId, receiverId, isRead])
   @@index([schoolId, senderId])
-  @@map("messages")
+  @@map("messages") // Mantém o nome da tabela por compatibilidade
+}
+
+// ==================== ANNOUNCEMENTS (Comunicados Oficiais 1:N) ====================
+enum AnnouncementCategory {
+  IMPORTANT // Comunicados importantes
+  GENERAL // Avisos gerais
+  FINANCIAL // Boletos e financeiro
+  AGENDA // Eventos e agenda
+  INDIVIDUAL // Mensagens individuais
+}
+
+enum AnnouncementAudienceType {
+  ALL_SCHOOL // Toda a escola
+  CLASS // Turma específica
+  STUDENT // Aluno específico
+  CUSTOM // Destinatários customizados
+}
+
+model Announcement {
+  id           String                   @id @default(uuid())
+  schoolId     String                   @map("school_id")
+  createdById  String                   @map("created_by_id")
+  category     AnnouncementCategory
+  audienceType AnnouncementAudienceType @map("audience_type")
+  classId      String?                  @map("class_id")
+  studentId    String?                  @map("student_id")
+  title        String
+  content      String                   @db.Text
+  publishedAt  DateTime?                @map("published_at")
+  createdAt    DateTime                 @default(now()) @map("created_at")
+  updatedAt    DateTime                 @updatedAt @map("updated_at")
+
+  // Relations
+  school       School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  creator      User                    @relation("CreatedAnnouncements", fields: [createdById], references: [id], onDelete: Cascade)
+  class        Class?                  @relation(fields: [classId], references: [id], onDelete: SetNull)
+  student      Student?                @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  recipients   AnnouncementRecipient[]
+  conversation Conversation?
+
+  @@index([schoolId, publishedAt])
+  @@index([schoolId, category])
+  @@index([schoolId, audienceType])
+  @@map("announcements")
+}
+
+model AnnouncementRecipient {
+  id             String    @id @default(uuid())
+  announcementId String    @map("announcement_id")
+  userId         String    @map("user_id")
+  deliveredAt    DateTime? @map("delivered_at")
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, readAt])
+  @@index([announcementId, deliveredAt])
+  @@map("announcement_recipients")
+}
+
+// ==================== CONVERSATIONS (Chat Interno) ====================
+enum ConversationStatus {
+  OPEN
+  CLOSED
+}
+
+model Conversation {
+  id             String             @id @default(uuid())
+  schoolId       String             @map("school_id")
+  announcementId String?            @unique @map("announcement_id")
+  status         ConversationStatus @default(OPEN)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  school       School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  announcement Announcement?             @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  participants ConversationParticipant[]
+  messages     ConversationMessage[]
+
+  @@index([schoolId, status])
+  @@index([announcementId])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String    @id @default(uuid())
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  lastReadAt     DateTime? @map("last_read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model ConversationMessage {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  senderId       String   @map("sender_id")
+  body           String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@map("conversation_messages")
 }
 
 // ==================== SCHEDULES ====================
