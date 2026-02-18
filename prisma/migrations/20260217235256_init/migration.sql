@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('SECRETARY', 'TEACHER', 'PARENT', 'STUDENT');
+CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'SECRETARY', 'TEACHER', 'PARENT', 'STUDENT');
 
 -- CreateEnum
 CREATE TYPE "StudentStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'TRANSFERRED', 'GRADUATED');
@@ -28,17 +28,31 @@ CREATE TYPE "AuthorizationType" AS ENUM ('FIELD_TRIP', 'MEDICATION', 'IMAGE_USE'
 -- CreateEnum
 CREATE TYPE "AuthorizationStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
 
+-- CreateEnum
+CREATE TYPE "AnnouncementCategory" AS ENUM ('IMPORTANT', 'GENERAL', 'FINANCIAL', 'AGENDA', 'INDIVIDUAL');
+
+-- CreateEnum
+CREATE TYPE "AnnouncementAudienceType" AS ENUM ('ALL_SCHOOL', 'CLASS', 'STUDENT', 'CUSTOM');
+
+-- CreateEnum
+CREATE TYPE "ConversationStatus" AS ENUM ('OPEN', 'CLOSED');
+
 -- CreateTable
 CREATE TABLE "schools" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "cnpj" TEXT NOT NULL,
-    "address" TEXT NOT NULL,
+    "cnpj" TEXT,
+    "school_type" TEXT,
+    "student_count" TEXT,
+    "address" TEXT,
     "city" TEXT NOT NULL,
     "state" TEXT NOT NULL,
-    "zip_code" TEXT NOT NULL,
+    "zip_code" TEXT,
     "phone" TEXT NOT NULL,
     "email" TEXT NOT NULL,
+    "whatsapp" TEXT,
+    "whatsapp_type" TEXT,
+    "timezone" TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
     "logo" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -64,6 +78,41 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
+CREATE TABLE "accounts" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "provider_account_id" TEXT NOT NULL,
+    "refresh_token" TEXT,
+    "access_token" TEXT,
+    "expires_at" INTEGER,
+    "token_type" TEXT,
+    "scope" TEXT,
+    "id_token" TEXT,
+    "session_state" TEXT,
+
+    CONSTRAINT "accounts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sessions" (
+    "id" TEXT NOT NULL,
+    "session_token" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "expires" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "verification_tokens" (
+    "identifier" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "expires" TIMESTAMP(3) NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "students" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
@@ -75,8 +124,6 @@ CREATE TABLE "students" (
     "city" TEXT,
     "state" TEXT,
     "zip_code" TEXT,
-    "guardian_name" TEXT NOT NULL,
-    "guardian_phone" TEXT NOT NULL,
     "health_info" TEXT,
     "enrollment_date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "status" "StudentStatus" NOT NULL DEFAULT 'ACTIVE',
@@ -272,6 +319,73 @@ CREATE TABLE "messages" (
 );
 
 -- CreateTable
+CREATE TABLE "announcements" (
+    "id" TEXT NOT NULL,
+    "school_id" TEXT NOT NULL,
+    "created_by_id" TEXT NOT NULL,
+    "category" "AnnouncementCategory" NOT NULL,
+    "audience_type" "AnnouncementAudienceType" NOT NULL,
+    "class_id" TEXT,
+    "student_id" TEXT,
+    "title" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "published_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "announcements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "announcement_recipients" (
+    "id" TEXT NOT NULL,
+    "announcement_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "delivered_at" TIMESTAMP(3),
+    "read_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "announcement_recipients_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "conversations" (
+    "id" TEXT NOT NULL,
+    "school_id" TEXT NOT NULL,
+    "announcement_id" TEXT,
+    "status" "ConversationStatus" NOT NULL DEFAULT 'OPEN',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "conversations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "conversation_participants" (
+    "id" TEXT NOT NULL,
+    "conversation_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "last_read_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "conversation_participants_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "conversation_messages" (
+    "id" TEXT NOT NULL,
+    "conversation_id" TEXT NOT NULL,
+    "sender_id" TEXT NOT NULL,
+    "body" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "conversation_messages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "schedules" (
     "id" TEXT NOT NULL,
     "school_id" TEXT NOT NULL,
@@ -304,6 +418,18 @@ CREATE INDEX "users_school_id_email_idx" ON "users"("school_id", "email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_school_id_key" ON "users"("email", "school_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "accounts_provider_provider_account_id_key" ON "accounts"("provider", "provider_account_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "sessions_session_token_key" ON "sessions"("session_token");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "verification_tokens_token_key" ON "verification_tokens"("token");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "verification_tokens_identifier_token_key" ON "verification_tokens"("identifier", "token");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "students_user_id_key" ON "students"("user_id");
@@ -384,6 +510,45 @@ CREATE INDEX "messages_school_id_receiver_id_is_read_idx" ON "messages"("school_
 CREATE INDEX "messages_school_id_sender_id_idx" ON "messages"("school_id", "sender_id");
 
 -- CreateIndex
+CREATE INDEX "announcements_school_id_published_at_idx" ON "announcements"("school_id", "published_at");
+
+-- CreateIndex
+CREATE INDEX "announcements_school_id_category_idx" ON "announcements"("school_id", "category");
+
+-- CreateIndex
+CREATE INDEX "announcements_school_id_audience_type_idx" ON "announcements"("school_id", "audience_type");
+
+-- CreateIndex
+CREATE INDEX "announcement_recipients_user_id_read_at_idx" ON "announcement_recipients"("user_id", "read_at");
+
+-- CreateIndex
+CREATE INDEX "announcement_recipients_announcement_id_delivered_at_idx" ON "announcement_recipients"("announcement_id", "delivered_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "announcement_recipients_announcement_id_user_id_key" ON "announcement_recipients"("announcement_id", "user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "conversations_announcement_id_key" ON "conversations"("announcement_id");
+
+-- CreateIndex
+CREATE INDEX "conversations_school_id_status_idx" ON "conversations"("school_id", "status");
+
+-- CreateIndex
+CREATE INDEX "conversations_announcement_id_idx" ON "conversations"("announcement_id");
+
+-- CreateIndex
+CREATE INDEX "conversation_participants_user_id_idx" ON "conversation_participants"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "conversation_participants_conversation_id_user_id_key" ON "conversation_participants"("conversation_id", "user_id");
+
+-- CreateIndex
+CREATE INDEX "conversation_messages_conversation_id_created_at_idx" ON "conversation_messages"("conversation_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "conversation_messages_sender_id_idx" ON "conversation_messages"("sender_id");
+
+-- CreateIndex
 CREATE INDEX "schedules_school_id_teacher_id_idx" ON "schedules"("school_id", "teacher_id");
 
 -- CreateIndex
@@ -394,6 +559,12 @@ CREATE INDEX "_ParentToStudent_B_index" ON "_ParentToStudent"("B");
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "students" ADD CONSTRAINT "students_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -487,6 +658,42 @@ ALTER TABLE "messages" ADD CONSTRAINT "messages_sender_id_fkey" FOREIGN KEY ("se
 
 -- AddForeignKey
 ALTER TABLE "messages" ADD CONSTRAINT "messages_receiver_id_fkey" FOREIGN KEY ("receiver_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "announcements" ADD CONSTRAINT "announcements_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "announcements" ADD CONSTRAINT "announcements_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "announcements" ADD CONSTRAINT "announcements_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "announcements" ADD CONSTRAINT "announcements_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "students"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "announcement_recipients" ADD CONSTRAINT "announcement_recipients_announcement_id_fkey" FOREIGN KEY ("announcement_id") REFERENCES "announcements"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "announcement_recipients" ADD CONSTRAINT "announcement_recipients_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "conversations" ADD CONSTRAINT "conversations_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "conversations" ADD CONSTRAINT "conversations_announcement_id_fkey" FOREIGN KEY ("announcement_id") REFERENCES "announcements"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "conversation_participants" ADD CONSTRAINT "conversation_participants_conversation_id_fkey" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "conversation_participants" ADD CONSTRAINT "conversation_participants_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "conversation_messages" ADD CONSTRAINT "conversation_messages_conversation_id_fkey" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "conversation_messages" ADD CONSTRAINT "conversation_messages_sender_id_fkey" FOREIGN KEY ("sender_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "schedules" ADD CONSTRAINT "schedules_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;

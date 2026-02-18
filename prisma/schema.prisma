@@ -142,8 +142,6 @@ model Student {
   city           String?
   state          String?
   zipCode        String?       @map("zip_code")
-  guardianName   String        @map("guardian_name")
-  guardianPhone  String        @map("guardian_phone")
   healthInfo     String?       @map("health_info")
   enrollmentDate DateTime      @default(now()) @map("enrollment_date")
   status         StudentStatus @default(ACTIVE)

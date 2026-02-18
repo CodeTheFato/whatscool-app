@@ -71,8 +71,6 @@ export async function GET(request: NextRequest) {
       phone: student.user.phone,
       registrationId: student.registrationId,
       class: student.class?.name || null,
-      guardianName: student.guardianName,
-      guardianPhone: student.guardianPhone,
       parents: student.parents.map((parent) => ({
         id: parent.id,
         name: parent.user.name,
@@ -227,8 +225,6 @@ export async function POST(request: NextRequest) {
           city: data.city || null,
           state: data.state || null,
           zipCode: data.zipCode || null,
-          guardianName: data.guardian1.name, // Mantém compatibilidade
-          guardianPhone: data.guardian1.phone, // Mantém compatibilidade
           healthInfo: data.healthInfo || null,
           classId: data.classId || null,
           status: "ACTIVE",
