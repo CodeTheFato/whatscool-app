@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verifica se email do responsável 2 já existe (se fornecido)
-    if (data.guardian2?.email) {
+    if (data.guardian2) {
       const existingGuardian2 = await prisma.user.findFirst({
         where: {
           email: data.guardian2.email,
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
 
     // Gera tokens de ativação para os responsáveis
     const guardian1Token = randomBytes(32).toString("hex")
-    const guardian2Token = data.guardian2?.email ? randomBytes(32).toString("hex") : null
+    const guardian2Token = data.guardian2 ? randomBytes(32).toString("hex") : null
     const tokenExpiry = new Date()
     tokenExpiry.setHours(tokenExpiry.getHours() + 48) // Token válido por 48 horas
 
@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
       let parent2 = null
 
       // Cria usuário do responsável 2 (se fornecido)
-      if (data.guardian2?.email && data.guardian2?.name && data.guardian2?.phone && data.guardian2?.kinship) {
+      if (data.guardian2) {
         guardian2User = await tx.user.create({
           data: {
             name: data.guardian2.name,

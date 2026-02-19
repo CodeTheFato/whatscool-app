@@ -21,11 +21,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
 
-    // Busca todas as conversas da escola
-    const conversations = await prisma.conversation.findMany({
-      where: {
-        schoolId: currentUser.schoolId,
+    // Query params
+    const searchParams = request.nextUrl.searchParams
+    const typeFilter = searchParams.get("type") // "DIRECT" | "BROADCAST"
+    const unreadFilter = searchParams.get("unread") === "true"
+    const searchQuery = searchParams.get("search") || ""
+
+    // Monta filtro base
+    const where: any = {
+      schoolId: currentUser.schoolId,
+      participants: {
+        some: {
+          userId: currentUser.id,
+        },
       },
+    }
+
+    // Filtro por tipo
+    if (typeFilter && (typeFilter === "DIRECT" || typeFilter === "BROADCAST")) {
+      where.type = typeFilter
+    }
+
+    // Filtro de busca por subject
+    if (searchQuery) {
+      where.subject = {
+        contains: searchQuery,
+        mode: "insensitive",
+      }
+    }
+
+    // Busca conversas onde o usuário é participante
+    const conversations = await prisma.conversation.findMany({
+      where,
       include: {
         participants: {
           include: {
@@ -35,6 +62,19 @@ export async function GET(request: NextRequest) {
                 name: true,
                 email: true,
                 role: true,
+                parent: {
+                  include: {
+                    students: {
+                      include: {
+                        user: {
+                          select: {
+                            name: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -61,13 +101,52 @@ export async function GET(request: NextRequest) {
             category: true,
           },
         },
+        class: {
+          select: {
+            id: true,
+            name: true,
+            grade: true,
+          },
+        },
+        student: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         updatedAt: "desc",
       },
     })
 
-    return NextResponse.json(conversations)
+    // Calcula flag unread para cada conversa
+    const conversationsWithUnread = conversations.map((conv) => {
+      const userParticipant = conv.participants.find(p => p.userId === currentUser.id)
+      const lastMessage = conv.messages[0]
+
+      // Conversa não lida se:
+      // 1. Não tem lastReadAt (nunca leu)
+      // 2. lastReadAt é anterior à última mensagem
+      const isUnread = !userParticipant?.lastReadAt ||
+        (lastMessage && new Date(lastMessage.createdAt) > new Date(userParticipant.lastReadAt))
+
+      return {
+        ...conv,
+        unread: isUnread,
+      }
+    })
+
+    // Aplica filtro de unread se solicitado
+    const filteredConversations = unreadFilter
+      ? conversationsWithUnread.filter(c => c.unread)
+      : conversationsWithUnread
+
+    return NextResponse.json(filteredConversations)
   } catch (error) {
     console.error("Error fetching conversations:", error)
     return NextResponse.json(
@@ -77,7 +156,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/chat/conversations - Cria nova conversa interna
+// POST /api/chat/conversations - Cria conversas 1:1 com responsáveis
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -86,7 +165,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
     }
 
-    // Busca usuário logado para pegar schoolId
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
     })
@@ -95,7 +173,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
 
-    // Verifica permissões (PARENT não pode criar conversa)
+    // PARENT não pode criar conversa
     if (currentUser.role === "PARENT") {
       return NextResponse.json(
         { error: "Responsáveis não podem criar conversas" },
@@ -106,7 +184,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { audienceType, classId, studentId, message, subject } = body
 
-    // Validações básicas
+    // Validações
     if (!audienceType || !message) {
       return NextResponse.json(
         { error: "Tipo de destinatário e mensagem são obrigatórios" },
@@ -121,15 +199,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Resolve destinatários baseado no tipo
+    if (audienceType === "CLASS" && !classId) {
+      return NextResponse.json({ error: "ID da turma é obrigatório" }, { status: 400 })
+    }
+
+    if (audienceType === "STUDENT" && !studentId) {
+      return NextResponse.json({ error: "ID do aluno é obrigatório" }, { status: 400 })
+    }
+
+    // Resolve destinatários (pais ativos)
     let recipientUserIds: string[] = []
+    let contextClassId: string | null = null
+    let contextStudentId: string | null = null
 
     if (audienceType === "CLASS") {
-      if (!classId) {
-        return NextResponse.json({ error: "ID da turma é obrigatório" }, { status: 400 })
-      }
-
-      // Busca todos os responsáveis dos alunos da turma
+      contextClassId = classId
       const students = await prisma.student.findMany({
         where: {
           classId,
@@ -144,9 +228,6 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      console.log(`[CLASS] Found ${students.length} students in class ${classId}`)
-
-      // Coleta IDs únicos dos responsáveis
       const parentIds = new Set<string>()
       students.forEach((student) => {
         student.parents.forEach((parent) => {
@@ -157,15 +238,8 @@ export async function POST(request: NextRequest) {
       })
 
       recipientUserIds = Array.from(parentIds)
-      console.log(`[CLASS] Resolved ${recipientUserIds.length} unique active parents`)
-    } else if (audienceType === "STUDENT") {
-      if (!studentId) {
-        return NextResponse.json({ error: "ID do aluno é obrigatório" }, { status: 400 })
-      }
-
-      console.log(`[STUDENT] Querying student ${studentId} in school ${currentUser.schoolId}`)
-
-      // Busca responsáveis do aluno
+    } else {
+      contextStudentId = studentId
       const student = await prisma.student.findFirst({
         where: {
           id: studentId,
@@ -180,8 +254,6 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      console.log(`[STUDENT] Query result:`, student ? `Found student with ${student.parents.length} parents` : 'Student not found')
-
       if (!student) {
         return NextResponse.json({ error: "Aluno não encontrado" }, { status: 404 })
       }
@@ -189,8 +261,6 @@ export async function POST(request: NextRequest) {
       recipientUserIds = student.parents
         .filter((parent) => parent.user.isActive)
         .map((parent) => parent.user.id)
-
-      console.log(`[STUDENT] Resolved ${recipientUserIds.length} active parent user IDs:`, recipientUserIds)
     }
 
     if (recipientUserIds.length === 0) {
@@ -200,78 +270,62 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`[TRANSACTION] Creating conversation with ${recipientUserIds.length} recipient(s)`)
+    // Cria N conversas 1:1 (uma por responsável)
+    const createdConversations = await prisma.$transaction(async (tx) => {
+      const conversations = []
 
-    // Cria conversa + participantes + primeira mensagem em transação
-    const result = await prisma.$transaction(async (tx) => {
-      // Cria a conversa
-      console.log(`[TRANSACTION] Step 1: Creating conversation`)
-      const conversation = await tx.conversation.create({
-        data: {
-          schoolId: currentUser.schoolId,
-          status: "OPEN",
-        },
-      })
-      console.log(`[TRANSACTION] Conversation created: ${conversation.id}`)
+      for (const recipientUserId of recipientUserIds) {
+        // Define o tipo de conversa baseado no audienceType
+        const conversationType = audienceType === "CLASS" ? "BROADCAST" : "DIRECT"
 
-      // Adiciona participantes (remetente + destinatários)
-      const participantData = [
-        { conversationId: conversation.id, userId: currentUser.id },
-        ...recipientUserIds.map((userId) => ({
-          conversationId: conversation.id,
-          userId,
-        })),
-      ]
+        // Cria conversa
+        const conversation = await tx.conversation.create({
+          data: {
+            schoolId: currentUser.schoolId,
+            type: conversationType,
+            status: "OPEN",
+            subject: subject || null,
+            audienceType: audienceType,
+            classId: contextClassId,
+            studentId: contextStudentId,
+          },
+        })
 
-      console.log(`[TRANSACTION] Step 2: Creating ${participantData.length} participants`)
-      await tx.conversationParticipant.createMany({
-        data: participantData,
-      })
-      console.log(`[TRANSACTION] Participants created successfully`)
+        // Cria 2 participantes: sender + recipient
+        await tx.conversationParticipant.createMany({
+          data: [
+            { conversationId: conversation.id, userId: currentUser.id },
+            { conversationId: conversation.id, userId: recipientUserId },
+          ],
+        })
 
-      // Cria primeira mensagem
-      console.log(`[TRANSACTION] Step 3: Creating first message`)
-      const firstMessage = await tx.conversationMessage.create({
-        data: {
-          conversationId: conversation.id,
-          senderId: currentUser.id,
-          body: message,
-        },
-      })
-      console.log(`[TRANSACTION] Message created: ${firstMessage.id}`)
+        // Cria primeira mensagem
+        await tx.conversationMessage.create({
+          data: {
+            conversationId: conversation.id,
+            senderId: currentUser.id,
+            body: message,
+          },
+        })
 
-      return { conversation, firstMessage }
+        conversations.push(conversation)
+      }
+
+      return conversations
     })
-
-    console.log(`
-      =================================================
-      ✅ NOVA CONVERSA INTERNA CRIADA
-
-      Conversa ID: ${result.conversation.id}
-      Criado por: ${currentUser.name} (${currentUser.role})
-      Escola: ${currentUser.schoolId}
-
-      Tipo: ${audienceType}
-      Destinatários: ${recipientUserIds.length} usuário(s)
-
-      Assunto: ${subject || "Sem assunto"}
-      Mensagem: ${message.slice(0, 100)}${message.length > 100 ? "..." : ""}
-
-      Status: OPEN
-      Data: ${new Date().toISOString()}
-      =================================================
-    `)
 
     return NextResponse.json(
       {
-        conversationId: result.conversation.id,
-        message: "Conversa criada com sucesso",
+        message: "Conversas criadas com sucesso",
         recipientCount: recipientUserIds.length,
+        createdCount: createdConversations.length,
+        firstConversationId: createdConversations[0]?.id || null,
+        type: createdConversations[0]?.type || "DIRECT",
       },
       { status: 201 }
     )
   } catch (error) {
-    console.error("❌ Error creating conversation:", error)
+    console.error("❌ Error creating conversations:", error)
     console.error("Error details:", {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
@@ -279,7 +333,7 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json(
       {
-        error: "Erro ao criar conversa",
+        error: "Erro ao criar conversas",
         details: error instanceof Error ? error.message : String(error)
       },
       { status: 500 }

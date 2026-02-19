@@ -72,14 +72,14 @@ export function AddStudentModal({ open, onOpenChange, onStudentAdded }: AddStude
     try {
       setIsLoading(true)
 
-      // Remove guardian2 se todos os campos estiverem vazios
+      // Remove guardian2 se TODOS os campos obrigatórios estiverem vazios
       const submitData = { ...data }
       if (
         submitData.guardian2 &&
-        !submitData.guardian2.name &&
-        !submitData.guardian2.email &&
-        !submitData.guardian2.phone &&
-        !submitData.guardian2.kinship
+        (!submitData.guardian2.name || submitData.guardian2.name.trim() === "") &&
+        (!submitData.guardian2.email || submitData.guardian2.email.trim() === "") &&
+        (!submitData.guardian2.phone || submitData.guardian2.phone.trim() === "") &&
+        (!submitData.guardian2.kinship || submitData.guardian2.kinship.trim() === "")
       ) {
         submitData.guardian2 = undefined
       }

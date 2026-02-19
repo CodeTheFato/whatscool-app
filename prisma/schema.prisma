@@ -159,6 +159,7 @@ model Student {
   activities     ActivitySubmission[]
   authorizations Authorization[]
   announcements  Announcement[]
+  conversations  Conversation[]
 
   @@unique([schoolId, registrationId])
   @@index([schoolId, status])
@@ -249,6 +250,7 @@ model Class {
   attendances   Attendance[]
   schedules     Schedule[]
   announcements Announcement[]
+  conversations Conversation[]
 
   @@unique([schoolId, name, academicYear])
   @@index([schoolId, academicYear])
@@ -563,22 +565,37 @@ enum ConversationStatus {
   CLOSED
 }
 
+enum ConversationType {
+  DIRECT
+  BROADCAST
+}
+
 model Conversation {
   id             String             @id @default(uuid())
   schoolId       String             @map("school_id")
   announcementId String?            @unique @map("announcement_id")
+  type           ConversationType   @default(DIRECT)
   status         ConversationStatus @default(OPEN)
+  subject        String?
+  audienceType   String?            @map("audience_type")
+  classId        String?            @map("class_id")
+  studentId      String?            @map("student_id")
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 
   // Relations
   school       School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   announcement Announcement?             @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  class        Class?                    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  student      Student?                  @relation(fields: [studentId], references: [id], onDelete: SetNull)
   participants ConversationParticipant[]
   messages     ConversationMessage[]
 
   @@index([schoolId, status])
+  @@index([schoolId, type])
   @@index([announcementId])
+  @@index([classId])
+  @@index([studentId])
   @@map("conversations")
 }
 

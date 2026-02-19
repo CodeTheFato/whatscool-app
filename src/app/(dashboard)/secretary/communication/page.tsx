@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -37,13 +37,16 @@ import {
   MessagesSquare,
   Info,
   Phone,
-  X
+  X,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react"
 import { toast } from "sonner"
 
 // ==================== TYPES ====================
 type Category = "comunicados" | "boletos" | "atraso-boletos" | "avisos"
 type OriginType = "WHATSAPP" | "PLATFORM"
+type ConversationType = "DIRECT" | "BROADCAST"
 
 type Message = {
   id: string
@@ -54,6 +57,7 @@ type Message = {
 
 type Conversation = {
   id: string
+  type: ConversationType
   parentName: string
   studentName: string
   subject: string
@@ -61,8 +65,11 @@ type Conversation = {
   origin: OriginType
   status: "OPEN" | "CLOSED"
   timestamp: Date
-  unread: number
+  unread: boolean
   messages: Message[]
+  audienceType?: string | null
+  class?: { id: string; name: string; grade: string } | null
+  student?: { id: string; registrationId: string; user: { name: string } } | null
 }
 
 type ClassData = {
@@ -102,10 +109,16 @@ export default function CommunicationPage() {
   const [isGenerating, setIsGenerating] = useState(false)
 
   // ===== CHAT TAB STATES =====
+  const [conversationType, setConversationType] = useState<ConversationType>("DIRECT")
+  const [unreadOnly, setUnreadOnly] = useState(false)
   const [chatFilter, setChatFilter] = useState<"all" | "unread" | Category>("all")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [replyText, setReplyText] = useState<string>("")
+
+  // Badges
+  const [directUnreadCount, setDirectUnreadCount] = useState(0)
+  const [broadcastUnreadCount, setBroadcastUnreadCount] = useState(0)
 
   // Nova Mensagem Modal States
   const [showNewMessageModal, setShowNewMessageModal] = useState(false)
@@ -126,6 +139,7 @@ export default function CommunicationPage() {
   const [isLoadingRecipients, setIsLoadingRecipients] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [isLoadingConversations, setIsLoadingConversations] = useState(false)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
   const categories = [
     { id: "comunicados" as const, label: "Comunicados", icon: BellRing, color: "text-purple-600", bg: "bg-purple-50" },
@@ -143,6 +157,7 @@ export default function CommunicationPage() {
         throw new Error('Erro ao buscar destinatários')
       }
       const data = await response.json()
+      console.log("Recipients data:", data)
       setClasses(data.classes || [])
       setStudents(data.students || [])
     } catch (error) {
@@ -156,7 +171,17 @@ export default function CommunicationPage() {
   const fetchConversations = async () => {
     setIsLoadingConversations(true)
     try {
-      const response = await fetch('/api/chat/conversations')
+      // Monta query params
+      const params = new URLSearchParams()
+      params.set('type', conversationType)
+      if (unreadOnly) {
+        params.set('unread', 'true')
+      }
+      if (searchQuery) {
+        params.set('search', searchQuery)
+      }
+
+      const response = await fetch(`/api/chat/conversations?${params.toString()}`)
       if (!response.ok) {
         throw new Error('Erro ao buscar conversas')
       }
@@ -168,22 +193,33 @@ export default function CommunicationPage() {
         const participants = conv.participants.filter((p: any) => p.user.role === 'PARENT')
         const firstParent = participants[0]?.user
 
+        // Busca o nome do aluno a partir do responsável
+        let studentName = 'Aluno'
+        if (firstParent?.parent?.students && firstParent.parent.students.length > 0) {
+          // Pega o nome do primeiro aluno vinculado ao responsável
+          studentName = firstParent.parent.students[0].user.name
+        }
+
         return {
           id: conv.id,
+          type: conv.type,
           parentName: firstParent?.name || 'Responsável',
-          studentName: participants.length > 1 ? `${participants.length} responsáveis` : firstParent?.name || 'Aluno',
-          subject: conv.announcement?.title || 'Conversa interna',
+          studentName: studentName,
+          subject: conv.announcement?.title || conv.subject || 'Conversa interna',
           category: (conv.announcement?.category?.toLowerCase() || 'comunicados') as Category,
           origin: conv.announcement ? 'WHATSAPP' : 'PLATFORM',
           status: conv.status,
           timestamp: new Date(lastMessage?.createdAt || conv.createdAt),
-          unread: 0, // TODO: implementar contagem de não lidas
+          unread: conv.unread || false,
           messages: conv.messages.map((msg: any) => ({
             id: msg.id,
             content: msg.body,
             from: msg.sender.role === 'PARENT' ? 'parent' : 'school',
             timestamp: new Date(msg.createdAt),
           })).reverse(),
+          audienceType: conv.audienceType,
+          class: conv.class,
+          student: conv.student,
         }
       })
 
@@ -196,16 +232,37 @@ export default function CommunicationPage() {
     }
   }
 
+  const fetchBadges = async () => {
+    try {
+      const response = await fetch('/api/chat/conversations/badges')
+      if (!response.ok) {
+        throw new Error('Erro ao buscar badges')
+      }
+      const data = await response.json()
+      setDirectUnreadCount(data.directUnreadCount || 0)
+      setBroadcastUnreadCount(data.broadcastUnreadCount || 0)
+    } catch (error) {
+      console.error('Erro ao buscar badges:', error)
+    }
+  }
+
   useEffect(() => {
     fetchRecipients()
-    fetchConversations()
+    fetchBadges()
   }, [])
 
+  // Refetch conversations quando mudar tipo, filtro ou busca
   useEffect(() => {
     if (activeTab === 'chat') {
       fetchConversations()
     }
-  }, [activeTab])
+  }, [conversationType, unreadOnly, searchQuery, activeTab])
+
+  // Refetch badges após criar conversa
+  const refreshAfterAction = async () => {
+    await fetchConversations()
+    await fetchBadges()
+  }
 
   // Conversas agora vêm da API via estado
 
@@ -321,8 +378,8 @@ export default function CommunicationPage() {
 
       const data = await response.json()
 
-      toast.success("Conversa criada com sucesso!", {
-        description: `Conversa iniciada com ${data.recipientCount} destinatário(s).`
+      toast.success("Mensagens enviadas com sucesso!", {
+        description: `${data.createdCount} conversa(s) individual(is) criada(s) com ${data.recipientCount} responsável(is).`
       })
 
       // Reset modal
@@ -334,12 +391,15 @@ export default function CommunicationPage() {
       setNewMsgSubject("")
       setNewMsgMessage("")
 
-      // Recarregar lista de conversas
-      await fetchConversations()
+      // Recarregar lista e badges
+      await refreshAfterAction()
 
-      // Navegar para a conversa criada
-      setSelectedConversation(data.conversationId)
-      setActiveTab("chat")
+      // Navegar para a conversa correta baseado no tipo
+      if (data.firstConversationId) {
+        setConversationType(data.type)
+        setSelectedConversation(data.firstConversationId)
+        setActiveTab("chat")
+      }
     } catch (error) {
       console.error("Error creating conversation:", error)
       toast.error(error instanceof Error ? error.message : "Erro ao criar conversa")
@@ -364,19 +424,42 @@ export default function CommunicationPage() {
     return message + footer
   }
 
-  const filteredConversations = conversations.filter((conv) => {
-    const matchesFilter =
-      chatFilter === "all" ? true :
-        chatFilter === "unread" ? conv.unread > 0 :
-          conv.category === chatFilter
+  const toggleGroupExpansion = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(groupId)) {
+        newSet.delete(groupId)
+      } else {
+        newSet.add(groupId)
+      }
+      return newSet
+    })
+  }
 
-    const matchesSearch =
-      conv.parentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.subject.toLowerCase().includes(searchQuery.toLowerCase())
+  // Para BROADCAST, agrupa por turma
+  const groupedBroadcasts = useMemo(() => {
+    if (conversationType !== "BROADCAST") return []
 
-    return matchesFilter && matchesSearch
-  })
+    const groups: Map<string, Conversation[]> = new Map()
+
+    conversations.forEach(conv => {
+      if (!conv.class) return
+      // Agrupa por turma + assunto para separar diferentes comunicados
+      const groupKey = `${conv.class.id}::${conv.subject}`
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, [])
+      }
+      groups.get(groupKey)!.push(conv)
+    })
+
+    return Array.from(groups.entries()).map(([groupKey, convs]) => ({
+      groupKey, // Key única para o accordion
+      classId: convs[0].class!.id,
+      className: convs[0].class!.name,
+      conversations: convs,
+      unreadCount: convs.filter(c => c.unread).length,
+    }))
+  }, [conversations, conversationType])
 
   const activeConversation = conversations.find((c) => c.id === selectedConversation)
 
@@ -802,10 +885,10 @@ export default function CommunicationPage() {
               <div className="lg:col-span-3">
                 <Card className="border-0 shadow-xl">
                   <CardHeader>
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <MessagesSquare className="h-5 w-5 text-blue-600" />
-                        <CardTitle className="text-lg">Conversas</CardTitle>
+                        <CardTitle className="text-lg">Chat Interno</CardTitle>
                       </div>
                       <Button
                         size="sm"
@@ -816,29 +899,68 @@ export default function CommunicationPage() {
                         Nova Mensagem
                       </Button>
                     </div>
+
+                    {/* Tabs de tipo de conversa */}
+                    <div className="flex gap-2 mb-4">
+                      <Button
+                        variant={conversationType === "DIRECT" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setConversationType("DIRECT")
+                          setUnreadOnly(false)
+                          setSelectedConversation(null)
+                        }}
+                        className="flex-1"
+                      >
+                        Conversas
+                        {directUnreadCount > 0 && (
+                          <Badge className="ml-2 bg-red-500 text-white border-0 h-5 px-2">
+                            {directUnreadCount}
+                          </Badge>
+                        )}
+                      </Button>
+                      <Button
+                        variant={conversationType === "BROADCAST" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setConversationType("BROADCAST")
+                          setUnreadOnly(false)
+                          setSelectedConversation(null)
+                        }}
+                        className="flex-1"
+                      >
+                        Comunicados
+                        {broadcastUnreadCount > 0 && (
+                          <Badge className="ml-2 bg-red-500 text-white border-0 h-5 px-2">
+                            {broadcastUnreadCount}
+                          </Badge>
+                        )}
+                      </Button>
+                    </div>
+
                     <div className="space-y-3">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Buscar conversas..."
+                          placeholder="Buscar..."
                           className="pl-10 border-2"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                         />
                       </div>
 
-                      <div className="flex gap-2 flex-wrap">
+                      <div className="flex gap-2">
                         <Button
                           size="sm"
-                          variant={chatFilter === "all" ? "default" : "outline"}
-                          onClick={() => setChatFilter("all")}
+                          variant={!unreadOnly ? "default" : "outline"}
+                          onClick={() => setUnreadOnly(false)}
                         >
                           Todas
                         </Button>
                         <Button
                           size="sm"
-                          variant={chatFilter === "unread" ? "default" : "outline"}
-                          onClick={() => setChatFilter("unread")}
+                          variant={unreadOnly ? "default" : "outline"}
+                          onClick={() => setUnreadOnly(true)}
                         >
                           Não lidas
                         </Button>
@@ -851,17 +973,93 @@ export default function CommunicationPage() {
                       {isLoadingConversations ? (
                         <div className="text-center py-12 text-muted-foreground">
                           <div className="animate-spin h-8 w-8 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-3" />
-                          <p className="text-sm">Carregando conversas...</p>
+                          <p className="text-sm">Carregando...</p>
                         </div>
-                      ) : filteredConversations.length === 0 ? (
+                      ) : conversations.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
                           <MessagesSquare className="h-12 w-12 mx-auto mb-3 opacity-20" />
                           <p className="text-sm">Nenhuma conversa encontrada</p>
                         </div>
+                      ) : conversationType === "BROADCAST" ? (
+                        // BROADCAST: Renderiza agrupados por turma em accordions
+                        groupedBroadcasts.map((group) => {
+                          const isExpanded = expandedGroups.has(group.groupKey)
+
+                          return (
+                            <div key={group.groupKey} className="space-y-2">
+                              {/* Cabeçalho do grupo (accordion) */}
+                              <button
+                                onClick={() => toggleGroupExpansion(group.groupKey)}
+                                className="w-full flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg hover:from-purple-100 hover:to-blue-100 transition-all"
+                              >
+                                <div className="h-8 w-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                  <Users className="h-4 w-4 text-purple-600" />
+                                </div>
+                                <div className="flex-1 text-left">
+                                  <p className="text-sm font-semibold text-purple-900">
+                                    📢 Comunicado para {group.className}
+                                  </p>
+                                  <p className="text-xs text-purple-500/70 italic truncate mb-0.5">
+                                    {group.conversations[0]?.subject}
+                                  </p>
+                                  <p className="text-xs text-purple-600">
+                                    {group.conversations.length} {group.conversations.length === 1 ? 'responsável' : 'responsáveis'}
+                                    {group.unreadCount > 0 && ` • ${group.unreadCount} não ${group.unreadCount === 1 ? 'lida' : 'lidas'}`}
+                                  </p>
+                                </div>
+                                {isExpanded ? (
+                                  <ChevronUp className="h-5 w-5 text-purple-600" />
+                                ) : (
+                                  <ChevronDown className="h-5 w-5 text-purple-600" />
+                                )}
+                              </button>
+
+                              {/* Conversas do grupo (expansível) */}
+                              {isExpanded && (
+                                <div className="ml-4 space-y-2 animate-in slide-in-from-top-2 fade-in-50 duration-200">
+                                  {group.conversations.map((conv) => {
+                                    const isActive = selectedConversation === conv.id
+
+                                    return (
+                                      <button
+                                        key={conv.id}
+                                        onClick={() => setSelectedConversation(conv.id)}
+                                        className={`w-full p-3 rounded-lg text-left transition-all ${isActive
+                                          ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
+                                          : "bg-white hover:bg-gray-50 border"
+                                          }`}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2 flex-1">
+                                            <Avatar className="h-7 w-7">
+                                              <AvatarFallback className={isActive ? "bg-white/20 text-white" : "bg-gradient-to-br from-blue-600 to-purple-600 text-white text-xs"}>
+                                                {conv.parentName.charAt(0)}
+                                              </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1 min-w-0">
+                                              <p className={`text-xs font-semibold truncate ${isActive ? "text-white" : "text-gray-900"}`}>
+                                                {conv.parentName}
+                                              </p>
+                                              <p className={`text-[10px] truncate ${isActive ? "text-white/80" : "text-muted-foreground"}`}>
+                                                {conv.studentName}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          {conv.unread && (
+                                            <div className="h-2 w-2 rounded-full bg-red-500 flex-shrink-0" />
+                                          )}
+                                        </div>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })
                       ) : (
-                        filteredConversations.map((conv) => {
-                          const categoryData = categories.find((c) => c.id === conv.category)
-                          const Icon = categoryData?.icon || MessageSquare
+                        // DIRECT: Renderiza lista tradicional de conversas individuais
+                        conversations.map((conv) => {
                           const isActive = selectedConversation === conv.id
 
                           return (
@@ -890,35 +1088,39 @@ export default function CommunicationPage() {
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
-                                  {conv.origin === "WHATSAPP" ? (
+                                  {conv.origin === "WHATSAPP" && (
                                     <Badge className="bg-green-100 text-green-700 border-0 text-[10px] gap-1">
                                       <Zap className="h-3 w-3" />
                                       WhatsApp
                                     </Badge>
-                                  ) : (
-                                    <Badge className="bg-blue-100 text-blue-700 border-0 text-[10px] gap-1">
-                                      <MessagesSquare className="h-3 w-3" />
-                                      Plataforma
-                                    </Badge>
                                   )}
-                                  {conv.unread > 0 && (
-                                    <Badge className="bg-red-500 text-white border-0 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px]">
-                                      {conv.unread}
-                                    </Badge>
+                                  {conv.unread && (
+                                    <div className="h-2 w-2 rounded-full bg-red-500" />
                                   )}
                                 </div>
                               </div>
                               <p className={`text-sm font-semibold mb-1 truncate ${isActive ? "text-white" : "text-gray-800"}`}>
                                 {conv.subject}
                               </p>
-                              <div className="flex items-center justify-between">
-                                <p className={`text-xs truncate flex-1 ${isActive ? "text-white/70" : "text-muted-foreground"}`}>
-                                  {conv.messages[conv.messages.length - 1]?.content.slice(0, 50)}...
-                                </p>
-                                <span className={`text-[10px] ml-2 ${isActive ? "text-white/70" : "text-muted-foreground"}`}>
-                                  {conv.timestamp.toLocaleDateString("pt-BR")}
-                                </span>
-                              </div>
+
+                              {/* Context chips */}
+                              {conv.student && (
+                                <Badge className={`mb-1 text-[10px] ${isActive ? "bg-white/20 text-white border-white/30" : "bg-blue-100 text-blue-700 border-0"}`}>
+                                  <User className="h-3 w-3 mr-1" />
+                                  Aluno: {conv.student.user.name}
+                                </Badge>
+                              )}
+
+                              {conv.messages && conv.messages.length > 0 && (
+                                <div className="flex items-center justify-between mt-1">
+                                  <p className={`text-xs truncate flex-1 ${isActive ? "text-white/70" : "text-muted-foreground"}`}>
+                                    {conv.messages[conv.messages.length - 1]?.content.slice(0, 50)}...
+                                  </p>
+                                  <span className={`text-[10px] ml-2 ${isActive ? "text-white/70" : "text-muted-foreground"}`}>
+                                    {new Date(conv.timestamp).toLocaleDateString("pt-BR")}
+                                  </span>
+                                </div>
+                              )}
                             </button>
                           )
                         })
@@ -1151,8 +1353,10 @@ export default function CommunicationPage() {
                           {/* Indicador de Responsáveis */}
                           {newMsgClass && (() => {
                             const selectedClass = classes.find(c => c.id === newMsgClass)
+                            console.log("Selected class for recipient count:", selectedClass)
                             if (!selectedClass) return null
                             const parentCount = selectedClass.parentCount
+                            console.log(parentCount)
                             return (
                               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
                                 <Users className="h-4 w-4 text-blue-600" />

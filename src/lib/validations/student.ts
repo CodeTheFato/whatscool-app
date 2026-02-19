@@ -9,12 +9,12 @@ const parentSchema = z.object({
 })
 
 const optionalParentSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
+  name: z.string().min(3, "Nome do responsável é obrigatório"),
+  email: z.string().email("Email inválido"),
+  phone: z.string().min(1, "Telefone é obrigatório"),
   cpf: z.string().optional(),
-  kinship: z.string().optional(),
-}).optional()
+  kinship: z.string().min(1, "Parentesco é obrigatório"),
+}).optional().nullable()
 
 export const studentFormSchema = z.object({
   // Dados do aluno
