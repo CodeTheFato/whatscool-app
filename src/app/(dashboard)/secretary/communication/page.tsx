@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -53,6 +53,7 @@ type Message = {
   content: string
   from: "school" | "parent"
   timestamp: Date
+  senderName: string
 }
 
 type Conversation = {
@@ -114,11 +115,17 @@ export default function CommunicationPage() {
   const [chatFilter, setChatFilter] = useState<"all" | "unread" | Category>("all")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
+  const [activeConversationFull, setActiveConversationFull] = useState<Conversation | null>(null)
+  const [isLoadingActiveConversation, setIsLoadingActiveConversation] = useState(false)
   const [replyText, setReplyText] = useState<string>("")
+  const [isSendingReply, setIsSendingReply] = useState(false)
 
   // Badges
   const [directUnreadCount, setDirectUnreadCount] = useState(0)
   const [broadcastUnreadCount, setBroadcastUnreadCount] = useState(0)
+
+  // Ref para scroll automático
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Nova Mensagem Modal States
   const [showNewMessageModal, setShowNewMessageModal] = useState(false)
@@ -246,6 +253,102 @@ export default function CommunicationPage() {
     }
   }
 
+  // Busca conversa completa com todas as mensagens
+  const fetchFullConversation = async (conversationId: string) => {
+    setIsLoadingActiveConversation(true)
+    try {
+      const response = await fetch(`/api/chat/conversations/${conversationId}`)
+      if (!response.ok) {
+        throw new Error('Erro ao buscar conversa')
+      }
+      const data = await response.json()
+
+      // Mapeia para o formato da interface
+      const participants = data.participants.filter((p: any) => p.user.role === 'PARENT')
+      const firstParent = participants[0]?.user
+
+      let studentName = 'Aluno'
+      if (firstParent?.parent?.students && firstParent.parent.students.length > 0) {
+        studentName = firstParent.parent.students[0].user.name
+      }
+
+      const fullConv: Conversation = {
+        id: data.id,
+        type: data.type,
+        parentName: firstParent?.name || 'Responsável',
+        studentName: studentName,
+        subject: data.announcement?.title || data.subject || 'Conversa interna',
+        category: (data.announcement?.category?.toLowerCase() || 'comunicados') as Category,
+        origin: data.announcement ? 'WHATSAPP' : 'PLATFORM',
+        status: data.status,
+        timestamp: new Date(data.createdAt),
+        unread: false,
+        messages: data.messages.map((msg: any) => ({
+          id: msg.id,
+          content: msg.body,
+          from: msg.sender.role === 'PARENT' ? 'parent' : 'school',
+          timestamp: new Date(msg.createdAt),
+          senderName: msg.sender.name,
+        })),
+        audienceType: data.audienceType,
+        class: data.class,
+        student: data.student,
+      }
+
+      setActiveConversationFull(fullConv)
+    } catch (error) {
+      console.error('Erro ao buscar conversa completa:', error)
+      toast.error('Erro ao carregar conversa')
+    } finally {
+      setIsLoadingActiveConversation(false)
+    }
+  }
+
+  // Polling para novas mensagens
+  const pollForNewMessages = async (conversationId: string) => {
+    if (!activeConversationFull) return
+
+    const lastMessageId = activeConversationFull.messages[activeConversationFull.messages.length - 1]?.id
+    if (!lastMessageId) return
+
+    try {
+      const response = await fetch(`/api/chat/conversations/${conversationId}/poll?lastMessageId=${lastMessageId}`)
+      if (!response.ok) return
+
+      const data = await response.json()
+
+      if (data.hasNewMessages && data.messages.length > 0) {
+        setActiveConversationFull(prev => {
+          if (!prev) return null
+
+          // Filtra mensagens que já não existem (evita duplicatas)
+          const existingIds = new Set(prev.messages.map(m => m.id))
+          const newMessages = data.messages
+            .filter((msg: any) => !existingIds.has(msg.id))
+            .map((msg: any) => ({
+              id: msg.id,
+              content: msg.body,
+              from: msg.sender.role === 'PARENT' ? 'parent' : 'school',
+              timestamp: new Date(msg.createdAt),
+              senderName: msg.sender.name,
+            }))
+
+          if (newMessages.length === 0) return prev
+
+          return {
+            ...prev,
+            messages: [...prev.messages, ...newMessages]
+          }
+        })
+
+        // Atualiza badges
+        await fetchBadges()
+      }
+    } catch (error) {
+      console.error('Erro no polling:', error)
+    }
+  }
+
   useEffect(() => {
     fetchRecipients()
     fetchBadges()
@@ -257,6 +360,33 @@ export default function CommunicationPage() {
       fetchConversations()
     }
   }, [conversationType, unreadOnly, searchQuery, activeTab])
+
+  // Busca conversa completa quando selecionada
+  useEffect(() => {
+    if (selectedConversation) {
+      fetchFullConversation(selectedConversation)
+    } else {
+      setActiveConversationFull(null)
+    }
+  }, [selectedConversation])
+
+  // Polling para novas mensagens na conversa ativa
+  useEffect(() => {
+    if (!selectedConversation || !activeConversationFull) return
+
+    const interval = setInterval(() => {
+      pollForNewMessages(selectedConversation)
+    }, 5000) // Poll a cada 5 segundos
+
+    return () => clearInterval(interval)
+  }, [selectedConversation, activeConversationFull])
+
+  // Auto-scroll para última mensagem
+  useEffect(() => {
+    if (activeConversationFull?.messages.length) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [activeConversationFull?.messages])
 
   // Refetch badges após criar conversa
   const refreshAfterAction = async () => {
@@ -307,12 +437,50 @@ export default function CommunicationPage() {
     setSelectedStudent("")
   }
 
-  const handleSendReply = () => {
-    if (!replyText.trim()) return
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !selectedConversation || !activeConversationFull) return
 
-    console.log("Sending reply:", replyText)
-    toast.success("Resposta enviada!")
-    setReplyText("")
+    setIsSendingReply(true)
+    try {
+      const response = await fetch(`/api/chat/conversations/${selectedConversation}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: replyText.trim() })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao enviar mensagem')
+      }
+
+      const newMessage = await response.json()
+
+      // Adiciona a nova mensagem ao estado local
+      setActiveConversationFull(prev => {
+        if (!prev) return null
+        return {
+          ...prev,
+          messages: [...prev.messages, {
+            id: newMessage.id,
+            content: newMessage.body,
+            from: 'school' as const,
+            timestamp: new Date(newMessage.createdAt),
+            senderName: newMessage.sender.name
+          }]
+        }
+      })
+
+      setReplyText("")
+      toast.success("Resposta enviada!")
+
+      // Atualiza lista e badges
+      await refreshAfterAction()
+    } catch (error) {
+      console.error('Erro ao enviar resposta:', error)
+      toast.error(error instanceof Error ? error.message : 'Erro ao enviar resposta')
+    } finally {
+      setIsSendingReply(false)
+    }
   }
 
   const handleGenerateNewMsgWithAI = async () => {
@@ -460,8 +628,6 @@ export default function CommunicationPage() {
       unreadCount: convs.filter(c => c.unread).length,
     }))
   }, [conversations, conversationType])
-
-  const activeConversation = conversations.find((c) => c.id === selectedConversation)
 
   // ==================== RENDER ====================
   return (
@@ -910,7 +1076,7 @@ export default function CommunicationPage() {
                           setUnreadOnly(false)
                           setSelectedConversation(null)
                         }}
-                        className="flex-1"
+                        className={`flex-1 ${conversationType === "DIRECT" ? "bg-violet-100 hover:bg-violet-200 text-violet-900 border-violet-200" : ""}`}
                       >
                         Conversas
                         {directUnreadCount > 0 && (
@@ -927,7 +1093,7 @@ export default function CommunicationPage() {
                           setUnreadOnly(false)
                           setSelectedConversation(null)
                         }}
-                        className="flex-1"
+                        className={`flex-1 ${conversationType === "BROADCAST" ? "bg-violet-100 hover:bg-violet-200 text-violet-900 border-violet-200" : ""}`}
                       >
                         Comunicados
                         {broadcastUnreadCount > 0 && (
@@ -954,6 +1120,7 @@ export default function CommunicationPage() {
                           size="sm"
                           variant={!unreadOnly ? "default" : "outline"}
                           onClick={() => setUnreadOnly(false)}
+                          className={!unreadOnly ? "bg-violet-100 hover:bg-violet-200 text-violet-900 border-violet-200" : ""}
                         >
                           Todas
                         </Button>
@@ -961,6 +1128,7 @@ export default function CommunicationPage() {
                           size="sm"
                           variant={unreadOnly ? "default" : "outline"}
                           onClick={() => setUnreadOnly(true)}
+                          className={unreadOnly ? "bg-violet-100 hover:bg-violet-200 text-violet-900 border-violet-200" : ""}
                         >
                           Não lidas
                         </Button>
@@ -1132,24 +1300,24 @@ export default function CommunicationPage() {
 
               {/* Chat Area */}
               <div className="lg:col-span-4">
-                {selectedConversation && activeConversation ? (
-                  <Card className="border-0 shadow-xl h-[744px] flex flex-col">
-                    <CardHeader className="border-b">
+                {selectedConversation && activeConversationFull ? (
+                  <Card className="border-0 shadow-xl h-[850px] flex flex-col overflow-hidden">
+                    <CardHeader className="border-b flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-10 w-10">
                             <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white font-bold">
-                              {activeConversation.parentName.charAt(0)}
+                              {activeConversationFull.parentName.charAt(0)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <CardTitle className="text-lg">{activeConversation.subject}</CardTitle>
+                            <CardTitle className="text-lg">{activeConversationFull.subject}</CardTitle>
                             <CardDescription className="text-xs">
-                              {activeConversation.parentName} • {activeConversation.studentName}
+                              {activeConversationFull.parentName} • {activeConversationFull.studentName}
                             </CardDescription>
                           </div>
                         </div>
-                        {activeConversation.origin === "WHATSAPP" ? (
+                        {activeConversationFull.origin === "WHATSAPP" ? (
                           <Badge className="bg-green-100 text-green-700 border-0 gap-1">
                             <Zap className="h-3 w-3" />
                             Origem: WhatsApp
@@ -1163,69 +1331,80 @@ export default function CommunicationPage() {
                       </div>
                     </CardHeader>
 
-                    <ScrollArea className="flex-1 p-6">
-                      <div className="space-y-4">
-                        {activeConversation.messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex ${msg.from === "school" ? "justify-end" : "justify-start"}`}
-                          >
+                    <ScrollArea className="h-[650px] p-6">
+                      {isLoadingActiveConversation ? (
+                        <div className="text-center py-12">
+                          <div className="animate-spin h-8 w-8 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-3" />
+                          <p className="text-sm text-muted-foreground">Carregando mensagens...</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {activeConversationFull.messages.map((msg) => (
                             <div
-                              className={`max-w-[80%] rounded-2xl p-4 shadow-md ${msg.from === "school"
-                                ? "bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-br-sm"
-                                : "bg-white border-2 border-gray-100 rounded-tl-sm"
-                                }`}
+                              key={msg.id}
+                              className={`flex ${msg.from === "school" ? "justify-end" : "justify-start"}`}
                             >
-                              <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                                {msg.content}
-                              </p>
                               <div
-                                className={`flex items-center justify-end gap-1 text-[10px] mt-2 ${msg.from === "school" ? "text-white/70" : "text-gray-500"
+                                className={`max-w-[80%] rounded-2xl p-4 shadow-md ${msg.from === "school"
+                                  ? "bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-br-sm"
+                                  : "bg-white border-2 border-gray-100 rounded-tl-sm"
                                   }`}
                               >
-                                <span>
-                                  {msg.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                                </span>
-                                {msg.from === "school" && <CheckCheck className="h-3 w-3" />}
+                                {msg.from === "parent" && (
+                                  <p className="text-xs font-semibold mb-1 text-muted-foreground">
+                                    {msg.senderName}
+                                  </p>
+                                )}
+                                <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                                  {msg.content}
+                                </p>
+                                <div
+                                  className={`flex items-center justify-end gap-1 text-[10px] mt-2 ${msg.from === "school" ? "text-white/70" : "text-gray-500"
+                                    }`}
+                                >
+                                  <span>
+                                    {msg.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                  {msg.from === "school" && <CheckCheck className="h-3 w-3" />}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                          {/* Âncora para auto-scroll */}
+                          <div ref={messagesEndRef} />
+                        </div>
+                      )}
                     </ScrollArea>
 
-                    <Separator />
-                    <div className="p-4 bg-gradient-to-r from-gray-50 to-blue-50">
-                      <div className="flex items-center gap-3">
-                        <Textarea
-                          placeholder="Digite sua resposta..."
-                          className="flex-1 min-h-[60px] max-h-[120px] resize-none border-2"
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault()
-                              handleSendReply()
-                            }
-                          }}
-                        />
-                        <Button
-                          size="icon"
-                          className="h-[60px] w-[60px] bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                          onClick={handleSendReply}
-                          disabled={!replyText.trim()}
-                        >
-                          <Send className="h-5 w-5" />
-                        </Button>
+                      <Separator className="flex-shrink-0" />
+                      <div className="p-4 flex-shrink-0">
+                        <div className="flex items-center gap-3">
+                          <Textarea
+                            placeholder="Digite sua resposta..."
+                            className="flex-1 min-h-[60px] max-h-[120px] resize-none border-2"
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault()
+                                handleSendReply()
+                              }
+                            }}
+                            disabled={isSendingReply}
+                          />
+                          <Button
+                            size="icon"
+                            className="h-[60px] w-[60px] bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                            onClick={handleSendReply}
+                            disabled={!replyText.trim() || isSendingReply}
+                          >
+                            <Send className="h-5 w-5" />
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                        <MessagesSquare className="h-3 w-3" />
-                        Resposta será enviada via plataforma
-                      </p>
-                    </div>
-                  </Card>
+                    </Card>
                 ) : (
-                  <Card className="border-0 shadow-xl h-[744px] flex items-center justify-center">
+                  <Card className="border-0 shadow-xl h-[850px] flex items-center justify-center">
                     <div className="text-center text-muted-foreground">
                       <MessagesSquare className="h-16 w-16 mx-auto mb-4 opacity-20" />
                       <p className="text-lg font-semibold mb-2">Nenhuma conversa selecionada</p>
