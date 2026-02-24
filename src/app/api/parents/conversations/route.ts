@@ -12,20 +12,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    // Busca dados do usuário com Parent
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: {
-        parent: {
-          include: {
-            students: {
-              include: {
-                user: true,
-                class: true,
-              },
-            },
-          },
-        },
+        parent: true,
       },
     })
 
@@ -36,7 +26,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const parentId = user.parent.id
     const { searchParams } = new URL(request.url)
     const unreadFilter = searchParams.get("unread") === "true"
     const searchQuery = searchParams.get("search") || ""
@@ -45,75 +34,58 @@ export async function GET(request: NextRequest) {
     const conversations = await prisma.conversation.findMany({
       where: {
         participants: {
-          some: {
-            userId: user.id,
-          },
+          some: { userId: user.id },
         },
       },
       include: {
         participants: {
-          include: {
-            user: true,
-          },
+          include: { user: true },
         },
         messages: {
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
           take: 1,
-          include: {
-            sender: true,
-          },
+          include: { sender: true },
         },
-        class: true,
-        student: {
+        announcement: {
           include: {
-            user: true,
+            class: true,
+            student: { include: { user: true } },
           },
         },
       },
-      orderBy: {
-        updatedAt: "desc",
-      },
+      orderBy: { updatedAt: "desc" },
     })
 
-    // Processa conversas e calcula unread
     const processedConversations = conversations
       .map((conv: any) => {
-        const userParticipant = conv.participants.find((p: any) => p.userId === user.id)
+        const userParticipant = conv.participants.find(
+          (p: any) => p.userId === user.id
+        )
         const lastMessage = conv.messages[0]
-
-        // Calcula se está não lida
         const isUnread =
-          !userParticipant?.lastReadAt ||
-          (lastMessage &&
-            new Date(lastMessage.createdAt) > new Date(userParticipant.lastReadAt))
+          lastMessage &&
+          (!userParticipant?.lastReadAt ||
+            new Date(lastMessage.createdAt) >
+            new Date(userParticipant.lastReadAt))
 
-        // Busca informações de quem enviou (escola)
-        const schoolParticipant = conv.participants.find((p: any) => p.userId !== user.id)
+        const schoolParticipant = conv.participants.find(
+          (p: any) => p.userId !== user.id
+        )
 
+        const ann = conv.announcement
         return {
           id: conv.id,
-          type: conv.type,
-          subject: conv.subject || "Sem assunto",
-          audienceType: conv.audienceType,
-          unread: isUnread,
+          subject:
+            conv.subject || ann?.title || "Sem assunto",
+          announcementId: ann?.id || null,
+          unread: !!isUnread,
           timestamp: lastMessage?.createdAt || conv.createdAt,
           origin: "PLATFORM",
-          class: conv.class
-            ? {
-              id: conv.class.id,
-              name: conv.class.name,
-              grade: conv.class.grade,
-            }
+          class: ann?.class
+            ? { id: ann.class.id, name: ann.class.name, grade: ann.class.grade }
             : null,
-          student: conv.student
-            ? {
-              id: conv.student.id,
-              user: {
-                name: conv.student.user.name,
-              },
-            }
+          student: ann?.student
+            ? { id: ann.student.id, user: { name: ann.student.user.name } }
             : null,
           schoolSenderName: schoolParticipant?.user?.name || "Escola",
           lastMessage: lastMessage
@@ -126,16 +98,15 @@ export async function GET(request: NextRequest) {
         }
       })
       .filter((conv: any) => {
-        // Filtro de busca
-        if (searchQuery && !conv.subject.toLowerCase().includes(searchQuery.toLowerCase())) {
+        if (
+          searchQuery &&
+          !conv.subject.toLowerCase().includes(searchQuery.toLowerCase())
+        ) {
           return false
         }
-
-        // Filtro de não lidas
         if (unreadFilter && !conv.unread) {
           return false
         }
-
         return true
       })
 

@@ -17,27 +17,20 @@ export async function GET(
 
     const { id: conversationId } = await params
 
-    // Busca a conversa
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       include: {
         participants: {
-          include: {
-            user: true,
-          },
+          include: { user: true },
         },
         messages: {
-          include: {
-            sender: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
+          include: { sender: true },
+          orderBy: { createdAt: "asc" },
         },
-        class: true,
-        student: {
+        announcement: {
           include: {
-            user: true,
+            class: true,
+            student: { include: { user: true } },
           },
         },
       },
@@ -47,7 +40,6 @@ export async function GET(
       return NextResponse.json({ error: "Conversa não encontrada" }, { status: 404 })
     }
 
-    // Verifica se o usuário é participante
     const isParticipant = conversation.participants.some(
       (p: any) => p.userId === session.user.id
     )
@@ -65,39 +57,26 @@ export async function GET(
         conversationId: conversationId,
         userId: session.user.id,
       },
-      data: {
-        lastReadAt: new Date(),
-      },
+      data: { lastReadAt: new Date() },
     })
 
-    // Formata resposta
+    const ann = (conversation as any).announcement
     const response = {
       id: conversation.id,
-      type: conversation.type,
-      subject: conversation.subject || "Sem assunto",
-      audienceType: conversation.audienceType,
+      subject: conversation.subject || ann?.title || "Sem assunto",
+      announcementId: ann?.id || null,
       createdAt: conversation.createdAt,
-      class: conversation.class
-        ? {
-          id: conversation.class.id,
-          name: conversation.class.name,
-          grade: conversation.class.grade,
-        }
+      class: ann?.class
+        ? { id: ann.class.id, name: ann.class.name, grade: ann.class.grade }
         : null,
-      student: conversation.student
-        ? {
-          id: conversation.student.id,
-          name: conversation.student.user.name,
-        }
+      student: ann?.student
+        ? { id: ann.student.id, name: ann.student.user.name }
         : null,
       messages: conversation.messages.map((msg: any) => ({
         id: msg.id,
         content: msg.body,
         createdAt: msg.createdAt,
-        sender: {
-          id: msg.sender.id,
-          name: msg.sender.name,
-        },
+        sender: { id: msg.sender.id, name: msg.sender.name },
         isFromSchool: msg.sender.id !== session.user.id,
       })),
       participants: conversation.participants.map((p: any) => ({

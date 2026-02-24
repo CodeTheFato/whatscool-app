@@ -1,0 +1,39 @@
+// ==================== SCHOOLS ====================
+// Modelo central da escola
+
+model School {
+  id           String   @id @default(uuid())
+  name         String
+  cnpj         String?  @unique
+  schoolType   String?  @map("school_type")
+  studentCount String?  @map("student_count")
+  address      String?
+  city         String
+  state        String
+  zipCode      String?  @map("zip_code")
+  phone        String
+  email        String
+  whatsapp     String?
+  whatsappType String?  @map("whatsapp_type")
+  timezone     String   @default("America/Sao_Paulo")
+  logo         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users            User[]
+  students         Student[]
+  teachers         Teacher[]
+  classes          Class[]
+  subjects         Subject[]
+  grades           Grade[]
+  attendances      Attendance[]
+  activities       Activity[]
+  financialRecords FinancialRecord[]
+  authorizations   Authorization[]
+  schedules        Schedule[]
+  announcements    Announcement[]
+  conversations    Conversation[]
+
+  @@map("schools")
+}

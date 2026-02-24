@@ -1,0 +1,59 @@
+// ==================== STUDENTS & PARENTS ====================
+// Alunos e Responsáveis
+
+model Student {
+  id             String        @id @default(uuid())
+  userId         String        @unique @map("user_id")
+  schoolId       String        @map("school_id")
+  registrationId String        @map("registration_id")
+  dateOfBirth    DateTime      @map("date_of_birth")
+  cpf            String?
+  address        String?
+  city           String?
+  state          String?
+  zipCode        String?       @map("zip_code")
+  healthInfo     String?       @map("health_info")
+  enrollmentDate DateTime      @default(now()) @map("enrollment_date")
+  status         StudentStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school         School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class          Class?               @relation(fields: [classId], references: [id])
+  classId        String?              @map("class_id")
+  parents        Parent[]
+  grades         Grade[]
+  attendances    Attendance[]
+  activities     ActivitySubmission[]
+  authorizations Authorization[]
+  announcements  Announcement[]
+
+  @@unique([schoolId, registrationId])
+  @@index([schoolId, status])
+  @@map("students")
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  TRANSFERRED
+  GRADUATED
+}
+
+model Parent {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  schoolId  String   @map("school_id")
+  cpf       String?
+  kinship   String // Relationship: father, mother, guardian, etc.
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  students Student[]
+
+  @@map("parents")
+}

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
-// GET /api/chat/conversations/badges - Retorna contadores de conversas não lidas
+// GET /api/chat/conversations/badges — Retorna contadores de não lidos
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -20,65 +20,57 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
 
-    // Busca conversas onde o usuário é participante
+    // Chat unread: conversas com mensagens mais recentes que lastReadAt do participante
     const conversations = await prisma.conversation.findMany({
       where: {
         schoolId: currentUser.schoolId,
         participants: {
-          some: {
-            userId: currentUser.id,
-          },
+          some: { userId: currentUser.id },
         },
       },
       include: {
         participants: {
-          where: {
-            userId: currentUser.id,
-          },
-          select: {
-            lastReadAt: true,
-          },
+          where: { userId: currentUser.id },
+          select: { lastReadAt: true },
         },
         messages: {
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
           take: 1,
-          select: {
-            createdAt: true,
-          },
+          select: { createdAt: true },
         },
       },
     })
 
-    let directUnreadCount = 0
-    let broadcastUnreadCount = 0
-
-    conversations.forEach((conv) => {
-      const userParticipant = conv.participants[0]
+    let chatUnreadCount = 0
+    for (const conv of conversations) {
+      const participant = conv.participants[0]
       const lastMessage = conv.messages[0]
-
-      // Verifica se está não lida
-      const isUnread = !userParticipant?.lastReadAt ||
-        (lastMessage && new Date(lastMessage.createdAt) > new Date(userParticipant.lastReadAt))
-
-      if (isUnread) {
-        if (conv.type === "DIRECT") {
-          directUnreadCount++
-        } else if (conv.type === "BROADCAST") {
-          broadcastUnreadCount++
-        }
+      if (
+        lastMessage &&
+        (!participant?.lastReadAt ||
+          new Date(lastMessage.createdAt) > new Date(participant.lastReadAt))
+      ) {
+        chatUnreadCount++
       }
+    }
+
+    // Announcement unread: comunicados onde o recipient ainda não leu
+    const announcementUnreadCount = await prisma.announcementRecipient.count({
+      where: {
+        userId: currentUser.id,
+        readAt: null,
+        announcement: { schoolId: currentUser.schoolId },
+      },
     })
 
     return NextResponse.json({
-      directUnreadCount,
-      broadcastUnreadCount,
+      chatUnreadCount,
+      announcementUnreadCount,
     })
   } catch (error) {
-    console.error("Error fetching conversation badges:", error)
+    console.error("Error fetching badges:", error)
     return NextResponse.json(
-      { error: "Erro ao buscar badges de conversas" },
+      { error: "Erro ao buscar badges" },
       { status: 500 }
     )
   }

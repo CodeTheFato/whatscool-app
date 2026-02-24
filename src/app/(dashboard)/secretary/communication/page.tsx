@@ -1,52 +1,41 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Switch } from "@/components/ui/switch"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import {
   Send,
-  Sparkles,
   Users,
   User,
-  School,
   MessageSquare,
   Clock,
   CheckCheck,
-  Zap,
   DollarSign,
   AlertCircle,
   BellRing,
-  Filter,
   Search,
   MessagesSquare,
-  Info,
-  Phone,
-  X,
-  ChevronDown,
-  ChevronUp
+  Plus,
+  Megaphone,
+  Lock,
+  Unlock,
+  GraduationCap,
+  Smartphone,
 } from "lucide-react"
 import { toast } from "sonner"
+import NewCommunicationModal from "@/components/secretary/NewCommunicationModal"
+import type { ClassData, StudentData } from "@/components/secretary/NewCommunicationModal"
 
 // ==================== TYPES ====================
 type Category = "comunicados" | "boletos" | "atraso-boletos" | "avisos"
 type OriginType = "WHATSAPP" | "PLATFORM"
-type ConversationType = "DIRECT" | "BROADCAST"
 
 type Message = {
   id: string
@@ -58,7 +47,6 @@ type Message = {
 
 type Conversation = {
   id: string
-  type: ConversationType
   parentName: string
   studentName: string
   subject: string
@@ -68,51 +56,38 @@ type Conversation = {
   timestamp: Date
   unread: boolean
   messages: Message[]
-  audienceType?: string | null
-  class?: { id: string; name: string; grade: string } | null
-  student?: { id: string; registrationId: string; user: { name: string } } | null
+  announcementId?: string | null
 }
 
-type ClassData = {
+type AnnouncementItem = {
   id: string
-  name: string
-  parentCount: number
+  title: string | null
+  content: string
+  category: string
+  audienceType: string
+  class: { id: string; name: string; grade: string } | null
+  student: { id: string; user: { name: string } } | null
+  creator: { id: string; name: string; role: string }
+  publishedAt: string | null
+  createdAt: string
+  totalRecipients: number
+  totalConversations: number
+  allowReplies?: boolean // mock frontend — será backend futuramente
 }
 
-type StudentData = {
-  id: string
-  name: string
-  classId: string | null
-  className: string
-  parents: {
-    id: string
-    name: string
-  }[]
-}
+// ==================== HELPERS ====================
+/** Frontend category (hyphen) → Prisma enum (UPPER_SNAKE) */
+const categoryToEnum = (cat: Category): string => cat.toUpperCase().replace(/-/g, '_')
+/** Prisma enum (UPPER_SNAKE) → frontend category (hyphen) */
+const enumToCategory = (val: string): Category => val.toLowerCase().replace(/_/g, '-') as Category
 
 // ==================== MAIN COMPONENT ====================
 export default function CommunicationPage() {
   // Tab control
-  const [activeTab, setActiveTab] = useState<string>("communication")
-
-  // ===== COMMUNICATION TAB STATES =====
-  const [category, setCategory] = useState<Category>("comunicados")
-  const [recipientType, setRecipientType] = useState<string>("turma")
-  const [selectedClass, setSelectedClass] = useState<string>("")
-  const [selectedStudent, setSelectedStudent] = useState<string>("")
-  const [subject, setSubject] = useState<string>("")
-  const [message, setMessage] = useState<string>("")
-  const [allowReplies, setAllowReplies] = useState<boolean>(true)
-
-  // AI Generation
-  const [showAIDialog, setShowAIDialog] = useState(false)
-  const [aiPrompt, setAiPrompt] = useState<string>("")
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [activeTab, setActiveTab] = useState<string>("comunicados")
 
   // ===== CHAT TAB STATES =====
-  const [conversationType, setConversationType] = useState<ConversationType>("DIRECT")
   const [unreadOnly, setUnreadOnly] = useState(false)
-  const [chatFilter, setChatFilter] = useState<"all" | "unread" | Category>("all")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [activeConversationFull, setActiveConversationFull] = useState<Conversation | null>(null)
@@ -121,24 +96,14 @@ export default function CommunicationPage() {
   const [isSendingReply, setIsSendingReply] = useState(false)
 
   // Badges
-  const [directUnreadCount, setDirectUnreadCount] = useState(0)
-  const [broadcastUnreadCount, setBroadcastUnreadCount] = useState(0)
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
+  const [announcementUnreadCount, setAnnouncementUnreadCount] = useState(0)
 
   // Ref para scroll automático
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Nova Mensagem Modal States
-  const [showNewMessageModal, setShowNewMessageModal] = useState(false)
-  const [newMsgCategory, setNewMsgCategory] = useState<Category>("comunicados")
-  const [newMsgRecipientType, setNewMsgRecipientType] = useState<"turma" | "aluno">("turma")
-  const [newMsgClass, setNewMsgClass] = useState<string>("")
-  const [newMsgStudent, setNewMsgStudent] = useState<string>("")
-  const [newMsgSubject, setNewMsgSubject] = useState<string>("")
-  const [newMsgMessage, setNewMsgMessage] = useState<string>("")
-  const [showNewMsgAIDialog, setShowNewMsgAIDialog] = useState(false)
-  const [newMsgAIPrompt, setNewMsgAIPrompt] = useState<string>("")
-  const [isGeneratingNewMsg, setIsGeneratingNewMsg] = useState(false)
-  const [isCreatingConversation, setIsCreatingConversation] = useState(false)
+  // Nova Comunicação Modal (unificada)
+  const [showComposerModal, setShowComposerModal] = useState(false)
 
   // Data from API
   const [classes, setClasses] = useState<ClassData[]>([])
@@ -146,7 +111,10 @@ export default function CommunicationPage() {
   const [isLoadingRecipients, setIsLoadingRecipients] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [isLoadingConversations, setIsLoadingConversations] = useState(false)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+
+  // Announcements feed
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([])
+  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false)
 
   const categories = [
     { id: "comunicados" as const, label: "Comunicados", icon: BellRing, color: "text-purple-600", bg: "bg-purple-50" },
@@ -178,9 +146,7 @@ export default function CommunicationPage() {
   const fetchConversations = async () => {
     setIsLoadingConversations(true)
     try {
-      // Monta query params
       const params = new URLSearchParams()
-      params.set('type', conversationType)
       if (unreadOnly) {
         params.set('unread', 'true')
       }
@@ -194,27 +160,23 @@ export default function CommunicationPage() {
       }
       const data = await response.json()
 
-      // Mapeia dados da API para o formato da interface
       const mappedConversations: Conversation[] = data.map((conv: any) => {
         const lastMessage = conv.messages[0]
         const participants = conv.participants.filter((p: any) => p.user.role === 'PARENT')
         const firstParent = participants[0]?.user
 
-        // Busca o nome do aluno a partir do responsável
         let studentName = 'Aluno'
         if (firstParent?.parent?.students && firstParent.parent.students.length > 0) {
-          // Pega o nome do primeiro aluno vinculado ao responsável
           studentName = firstParent.parent.students[0].user.name
         }
 
         return {
           id: conv.id,
-          type: conv.type,
           parentName: firstParent?.name || 'Responsável',
           studentName: studentName,
           subject: conv.announcement?.title || conv.subject || 'Conversa interna',
-          category: (conv.announcement?.category?.toLowerCase() || 'comunicados') as Category,
-          origin: conv.announcement ? 'WHATSAPP' : 'PLATFORM',
+          category: conv.announcement?.category ? enumToCategory(conv.announcement.category) : 'comunicados',
+          origin: conv.announcementId ? 'WHATSAPP' : 'PLATFORM',
           status: conv.status,
           timestamp: new Date(lastMessage?.createdAt || conv.createdAt),
           unread: conv.unread || false,
@@ -224,9 +186,7 @@ export default function CommunicationPage() {
             from: msg.sender.role === 'PARENT' ? 'parent' : 'school',
             timestamp: new Date(msg.createdAt),
           })).reverse(),
-          audienceType: conv.audienceType,
-          class: conv.class,
-          student: conv.student,
+          announcementId: conv.announcementId || null,
         }
       })
 
@@ -246,10 +206,25 @@ export default function CommunicationPage() {
         throw new Error('Erro ao buscar badges')
       }
       const data = await response.json()
-      setDirectUnreadCount(data.directUnreadCount || 0)
-      setBroadcastUnreadCount(data.broadcastUnreadCount || 0)
+      setChatUnreadCount(data.chatUnreadCount || 0)
+      setAnnouncementUnreadCount(data.announcementUnreadCount || 0)
     } catch (error) {
       console.error('Erro ao buscar badges:', error)
+    }
+  }
+
+  const fetchAnnouncements = async () => {
+    setIsLoadingAnnouncements(true)
+    try {
+      const response = await fetch('/api/announcements')
+      if (!response.ok) throw new Error('Erro ao buscar comunicados')
+      const data = await response.json()
+      // Mock: todos comunicados permitem resposta por padrão (será backend futuramente)
+      setAnnouncements(data.map((a: any) => ({ ...a, allowReplies: true })))
+    } catch (error) {
+      console.error('Erro ao buscar comunicados:', error)
+    } finally {
+      setIsLoadingAnnouncements(false)
     }
   }
 
@@ -263,7 +238,6 @@ export default function CommunicationPage() {
       }
       const data = await response.json()
 
-      // Mapeia para o formato da interface
       const participants = data.participants.filter((p: any) => p.user.role === 'PARENT')
       const firstParent = participants[0]?.user
 
@@ -274,12 +248,11 @@ export default function CommunicationPage() {
 
       const fullConv: Conversation = {
         id: data.id,
-        type: data.type,
         parentName: firstParent?.name || 'Responsável',
         studentName: studentName,
         subject: data.announcement?.title || data.subject || 'Conversa interna',
-        category: (data.announcement?.category?.toLowerCase() || 'comunicados') as Category,
-        origin: data.announcement ? 'WHATSAPP' : 'PLATFORM',
+        category: data.announcement?.category ? enumToCategory(data.announcement.category) : 'comunicados',
+        origin: data.announcementId ? 'WHATSAPP' : 'PLATFORM',
         status: data.status,
         timestamp: new Date(data.createdAt),
         unread: false,
@@ -290,9 +263,7 @@ export default function CommunicationPage() {
           timestamp: new Date(msg.createdAt),
           senderName: msg.sender.name,
         })),
-        audienceType: data.audienceType,
-        class: data.class,
-        student: data.student,
+        announcementId: data.announcementId || null,
       }
 
       setActiveConversationFull(fullConv)
@@ -321,7 +292,6 @@ export default function CommunicationPage() {
         setActiveConversationFull(prev => {
           if (!prev) return null
 
-          // Filtra mensagens que já não existem (evita duplicatas)
           const existingIds = new Set(prev.messages.map(m => m.id))
           const newMessages = data.messages
             .filter((msg: any) => !existingIds.has(msg.id))
@@ -341,7 +311,6 @@ export default function CommunicationPage() {
           }
         })
 
-        // Atualiza badges
         await fetchBadges()
       }
     } catch (error) {
@@ -352,14 +321,15 @@ export default function CommunicationPage() {
   useEffect(() => {
     fetchRecipients()
     fetchBadges()
+    fetchAnnouncements()
   }, [])
 
-  // Refetch conversations quando mudar tipo, filtro ou busca
+  // Refetch conversations quando mudar filtro ou busca
   useEffect(() => {
-    if (activeTab === 'chat') {
+    if (activeTab === 'conversas') {
       fetchConversations()
     }
-  }, [conversationType, unreadOnly, searchQuery, activeTab])
+  }, [unreadOnly, searchQuery, activeTab])
 
   // Busca conversa completa quando selecionada
   useEffect(() => {
@@ -376,7 +346,7 @@ export default function CommunicationPage() {
 
     const interval = setInterval(() => {
       pollForNewMessages(selectedConversation)
-    }, 5000) // Poll a cada 5 segundos
+    }, 5000)
 
     return () => clearInterval(interval)
   }, [selectedConversation, activeConversationFull])
@@ -388,55 +358,12 @@ export default function CommunicationPage() {
     }
   }, [activeConversationFull?.messages])
 
-  // Refetch badges após criar conversa
   const refreshAfterAction = async () => {
     await fetchConversations()
     await fetchBadges()
   }
 
-  // Conversas agora vêm da API via estado
-
   // ==================== HANDLERS ====================
-  const handleGenerateWithAI = async () => {
-    if (!aiPrompt.trim()) return
-
-    setIsGenerating(true)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    const generated = `Prezados responsáveis,\n\n${aiPrompt}\n\nContamos com sua compreensão.\n\nAtenciosamente,\nEscola WhatSchool`
-    setMessage(generated)
-    setIsGenerating(false)
-    setShowAIDialog(false)
-    setAiPrompt("")
-
-    toast.success("Mensagem gerada com sucesso!", {
-      description: "A mensagem foi inserida no campo de texto."
-    })
-  }
-
-  const handleSendAnnouncement = () => {
-    console.log("Sending announcement:", {
-      category,
-      recipientType,
-      recipient: recipientType === "turma" ? selectedClass : selectedStudent,
-      subject,
-      message,
-      allowReplies,
-    })
-
-    toast.success("Comunicado enviado!", {
-      description: allowReplies
-        ? "Mensagem enviada via WhatsApp. Chat criado para respostas."
-        : "Mensagem enviada via WhatsApp."
-    })
-
-    // Reset form
-    setSubject("")
-    setMessage("")
-    setSelectedClass("")
-    setSelectedStudent("")
-  }
-
   const handleSendReply = async () => {
     if (!replyText.trim() || !selectedConversation || !activeConversationFull) return
 
@@ -455,7 +382,6 @@ export default function CommunicationPage() {
 
       const newMessage = await response.json()
 
-      // Adiciona a nova mensagem ao estado local
       setActiveConversationFull(prev => {
         if (!prev) return null
         return {
@@ -473,7 +399,6 @@ export default function CommunicationPage() {
       setReplyText("")
       toast.success("Resposta enviada!")
 
-      // Atualiza lista e badges
       await refreshAfterAction()
     } catch (error) {
       console.error('Erro ao enviar resposta:', error)
@@ -483,151 +408,18 @@ export default function CommunicationPage() {
     }
   }
 
-  const handleGenerateNewMsgWithAI = async () => {
-    if (!newMsgAIPrompt.trim()) return
-
-    setIsGeneratingNewMsg(true)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    const generated = `Prezados responsáveis,\n\n${newMsgAIPrompt}\n\nContamos com sua compreensão.\n\nAtenciosamente,\nEscola WhatSchool`
-    setNewMsgMessage(generated)
-    setIsGeneratingNewMsg(false)
-    setShowNewMsgAIDialog(false)
-    setNewMsgAIPrompt("")
-
-    toast.success("Mensagem gerada com sucesso!", {
-      description: "A mensagem foi inserida no campo de texto."
-    })
+  // ==================== RENDER HELPERS ====================
+  const getCategoryInfo = (enumVal: string) => {
+    const cat = enumToCategory(enumVal)
+    return categories.find(c => c.id === cat) || categories[0]
   }
 
-  const handleCreateConversation = async () => {
-    if (!newMsgMessage.trim()) {
-      toast.error("A mensagem é obrigatória")
-      return
-    }
-
-    if (newMsgRecipientType === "turma" && !newMsgClass) {
-      toast.error("Selecione uma turma")
-      return
-    }
-
-    if (newMsgRecipientType === "aluno" && !newMsgStudent) {
-      toast.error("Selecione um aluno")
-      return
-    }
-
-    // Mapeia tipo em português para inglês
-    const audienceTypeMap = {
-      turma: "CLASS",
-      aluno: "STUDENT"
-    }
-
-    const payload = {
-      audienceType: audienceTypeMap[newMsgRecipientType],
-      classId: newMsgRecipientType === "turma" ? newMsgClass : undefined,
-      studentId: newMsgRecipientType === "aluno" ? newMsgStudent : undefined,
-      message: newMsgMessage,
-      subject: newMsgSubject || undefined,
-    }
-
-    setIsCreatingConversation(true)
-
-    try {
-      const response = await fetch('/api/chat/conversations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Erro ao criar conversa")
-      }
-
-      const data = await response.json()
-
-      toast.success("Mensagens enviadas com sucesso!", {
-        description: `${data.createdCount} conversa(s) individual(is) criada(s) com ${data.recipientCount} responsável(is).`
-      })
-
-      // Reset modal
-      setShowNewMessageModal(false)
-      setNewMsgCategory("comunicados")
-      setNewMsgRecipientType("turma")
-      setNewMsgClass("")
-      setNewMsgStudent("")
-      setNewMsgSubject("")
-      setNewMsgMessage("")
-
-      // Recarregar lista e badges
-      await refreshAfterAction()
-
-      // Navegar para a conversa correta baseado no tipo
-      if (data.firstConversationId) {
-        setConversationType(data.type)
-        setSelectedConversation(data.firstConversationId)
-        setActiveTab("chat")
-      }
-    } catch (error) {
-      console.error("Error creating conversation:", error)
-      toast.error(error instanceof Error ? error.message : "Erro ao criar conversa")
-    } finally {
-      setIsCreatingConversation(false)
-    }
+  const getAudienceLabel = (ann: AnnouncementItem) => {
+    if (ann.audienceType === 'CLASS' && ann.class) return ann.class.name
+    if (ann.audienceType === 'STUDENT' && ann.student) return ann.student.user.name
+    if (ann.audienceType === 'ALL_SCHOOL') return 'Toda a escola'
+    return ''
   }
-
-  const getRecipientCount = () => {
-    if (recipientType === "turma" && selectedClass) return "342 responsáveis"
-    if (recipientType === "aluno" && selectedStudent) return "1 responsável"
-    return "0 destinatários"
-  }
-
-  const getMessagePreview = () => {
-    if (!message) return "Sua mensagem aparecerá aqui..."
-
-    const footer = allowReplies
-      ? "\n\nPara responder, acesse o WhatSchool - Central de Comunicação."
-      : ""
-
-    return message + footer
-  }
-
-  const toggleGroupExpansion = (groupId: string) => {
-    setExpandedGroups(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(groupId)) {
-        newSet.delete(groupId)
-      } else {
-        newSet.add(groupId)
-      }
-      return newSet
-    })
-  }
-
-  // Para BROADCAST, agrupa por turma
-  const groupedBroadcasts = useMemo(() => {
-    if (conversationType !== "BROADCAST") return []
-
-    const groups: Map<string, Conversation[]> = new Map()
-
-    conversations.forEach(conv => {
-      if (!conv.class) return
-      // Agrupa por turma + assunto para separar diferentes comunicados
-      const groupKey = `${conv.class.id}::${conv.subject}`
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, [])
-      }
-      groups.get(groupKey)!.push(conv)
-    })
-
-    return Array.from(groups.entries()).map(([groupKey, convs]) => ({
-      groupKey, // Key única para o accordion
-      classId: convs[0].class!.id,
-      className: convs[0].class!.name,
-      conversations: convs,
-      unreadCount: convs.filter(c => c.unread).length,
-    }))
-  }, [conversations, conversationType])
 
   // ==================== RENDER ====================
   return (
@@ -635,416 +427,177 @@ export default function CommunicationPage() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
 
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+        <div className="mb-8 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
               <MessagesSquare className="h-6 w-6 text-white" />
             </div>
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Central de Comunicação
+                Comunicação
               </h1>
               <p className="text-sm text-muted-foreground">
-                Envie notificações via WhatsApp e gerencie conversas na plataforma
+                Envie comunicados e gerencie conversas com responsáveis
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-green-50 to-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Enviadas Hoje</p>
-                  <p className="text-3xl font-bold text-green-600">12</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                  <Zap className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Conversas Ativas</p>
-                  <p className="text-3xl font-bold text-blue-600">8</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                  <MessagesSquare className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Não Lidas</p>
-                  <p className="text-3xl font-bold text-purple-600">3</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <AlertCircle className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setShowComposerModal(true)}
+              className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
+            >
+              <Plus className="h-4 w-4" />
+              Nova Comunicação
+            </Button>
+          </div>
         </div>
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2 h-12 p-1 bg-white/50 backdrop-blur-sm shadow-md">
             <TabsTrigger
-              value="communication"
-              className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-600 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+              value="comunicados"
+              className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
             >
-              <Zap className="h-4 w-4" />
-              Comunicação
+              <Megaphone className="h-4 w-4" />
+              Comunicados
+              {announcementUnreadCount > 0 && (
+                <Badge className="bg-red-500 text-white border-0 h-5 px-1.5 text-[10px] ml-1">
+                  {announcementUnreadCount}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger
-              value="chat"
+              value="conversas"
               className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
             >
               <MessagesSquare className="h-4 w-4" />
-              Chat
+              Conversas
+              {chatUnreadCount > 0 && (
+                <Badge className="bg-red-500 text-white border-0 h-5 px-1.5 text-[10px] ml-1">
+                  {chatUnreadCount}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
-          {/* ==================== TAB 1: COMMUNICATION ==================== */}
-          <TabsContent value="communication" className="mt-8">
-            <div className="grid gap-6 lg:grid-cols-5">
-              {/* Left: Form */}
-              <div className="lg:col-span-3 space-y-6">
-
-                {/* Info Banner */}
-                <Card className="border-blue-200 bg-blue-50/50">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold text-blue-900">
-                          WhatsApp é canal de notificação
-                        </p>
-                        <p className="text-xs text-blue-700 leading-relaxed">
-                          Mensagens enviadas via WhatsApp são notificações. Respostas acontecem exclusivamente na plataforma.
-                        </p>
-                      </div>
+          {/* ==================== TAB 1: COMUNICADOS (Feed) ==================== */}
+          <TabsContent value="comunicados" className="mt-6">
+            <div className="space-y-4">
+              {isLoadingAnnouncements ? (
+                <div className="text-center py-16 text-muted-foreground">
+                  <div className="animate-spin h-8 w-8 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-3" />
+                  <p className="text-sm">Carregando comunicados...</p>
+                </div>
+              ) : announcements.length === 0 ? (
+                <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+                  <CardContent className="py-20 text-center">
+                    <div className="h-20 w-20 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-5">
+                      <Megaphone className="h-10 w-10 text-purple-300" />
                     </div>
+                    <p className="text-xl font-bold text-gray-800 mb-2">Nenhum comunicado enviado ainda</p>
+                    <p className="text-sm text-muted-foreground mb-8 max-w-sm mx-auto">Envie seu primeiro comunicado para os responsáveis da escola. É rápido e simples.</p>
+                    <Button
+                      onClick={() => setShowComposerModal(true)}
+                      className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/20 px-6"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Criar Comunicado
+                    </Button>
                   </CardContent>
                 </Card>
-
-                {/* Category Selection */}
-                <Card className="border-0 shadow-xl">
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
-                        <BellRing className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl">Categoria</CardTitle>
-                        <CardDescription>Classifique o tipo de comunicação</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Select value={category} onValueChange={(value) => setCategory(value as Category)}>
-                      <SelectTrigger className="h-12 border-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => {
-                          const Icon = cat.icon
-                          return (
-                            <SelectItem key={cat.id} value={cat.id} className="h-12">
-                              <div className="flex items-center gap-3">
-                                <div className={`h-8 w-8 rounded-lg ${cat.bg} flex items-center justify-center`}>
-                                  <Icon className={`h-4 w-4 ${cat.color}`} />
-                                </div>
-                                <span className="font-medium">{cat.label}</span>
-                              </div>
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </CardContent>
-                </Card>
-
-                {/* Recipients */}
-                <Card className="border-0 shadow-xl">
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
-                        <Users className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl">Destinatários</CardTitle>
-                        <CardDescription>Selecione quem receberá a notificação</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
-                    <div className="space-y-3">
-                      <Label>Tipo de Destinatário</Label>
-                      <Select value={recipientType} onValueChange={setRecipientType}>
-                        <SelectTrigger className="h-12 border-2">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="turma" className="h-12">
-                            <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                                <Users className="h-4 w-4 text-blue-600" />
-                              </div>
-                              <span className="font-medium">Turma Inteira</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="aluno" className="h-12">
-                            <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 rounded-lg bg-green-100 flex items-center justify-center">
-                                <User className="h-4 w-4 text-green-600" />
-                              </div>
-                              <span className="font-medium">Aluno Individual</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {recipientType === "turma" && (
-                      <div className="space-y-3 animate-in fade-in-50 slide-in-from-top-2 duration-300">
-                        <Label>Selecionar Turma</Label>
-                        <Select value={selectedClass} onValueChange={setSelectedClass}>
-                          <SelectTrigger className="h-12 border-2">
-                            <SelectValue placeholder="Escolha uma turma" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {classes.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {recipientType === "aluno" && (
-                      <div className="space-y-3 animate-in fade-in-50 slide-in-from-top-2 duration-300">
-                        <Label>Selecionar Aluno</Label>
-                        <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-                          <SelectTrigger className="h-12 border-2">
-                            <SelectValue placeholder="Escolha um aluno" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {students.map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                <div>
-                                  <div className="font-medium">{s.name}</div>
-                                  <div className="text-xs text-muted-foreground">{s.className}</div>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    <div className="pt-4 border-t">
-                      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                        <span className="text-sm font-medium text-gray-700">Destinatários</span>
-                        <Badge className="bg-blue-600 text-white">
-                          {getRecipientCount()}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Message */}
-                <Card className="border-0 shadow-xl">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center">
-                          <MessageSquare className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-xl">Mensagem</CardTitle>
-                          <CardDescription>Escreva o conteúdo da notificação</CardDescription>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowAIDialog(true)}
-                        className="gap-2 border-purple-200 hover:bg-purple-50"
-                      >
-                        <Sparkles className="h-4 w-4 text-purple-600" />
-                        Gerar com IA
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
-                    <div className="space-y-3">
-                      <Label className="flex items-center justify-between">
-                        <span>Texto da Mensagem</span>
-                        <span className="text-xs text-muted-foreground font-normal">
-                          {message.length} / 1000 caracteres
-                        </span>
-                      </Label>
-                      <Textarea
-                        placeholder="Digite sua mensagem..."
-                        className="min-h-[200px] resize-none border-2"
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        maxLength={1000}
-                      />
-                    </div>
-
-                    <div className="pt-4 border-t space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label className="text-base">Permitir respostas na plataforma</Label>
-                          <p className="text-xs text-muted-foreground">
-                            Cria chat interno para conversas bidirecionais
-                          </p>
-                        </div>
-                        <Switch
-                          checked={allowReplies}
-                          onCheckedChange={setAllowReplies}
-                        />
-                      </div>
-
-                      <Button
-                        className="w-full h-14 text-base font-semibold bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-lg"
-                        onClick={handleSendAnnouncement}
-                        disabled={!message || (!selectedClass && !selectedStudent)}
-                      >
-                        <Send className="mr-2 h-5 w-5" />
-                        Enviar via WhatsApp
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Right: Preview */}
-              <div className="lg:col-span-2">
-                <Card className="sticky top-6 border-0 shadow-xl">
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center">
-                        <Phone className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <CardTitle>Preview WhatsApp</CardTitle>
-                        <CardDescription>Como ficará no celular</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="bg-[#e5ddd5] p-6 min-h-[300px]">
-                      <div className="bg-white rounded-2xl rounded-tl-sm p-4 shadow-md max-w-[85%]">
-                        <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-                          {getMessagePreview()}
-                        </p>
-                        <div className="flex items-center justify-end gap-1 text-xs text-gray-500 mt-3">
-                          <span>{new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
-                          <CheckCheck className="h-4 w-4 text-blue-500" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-t">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Zap className="h-4 w-4 text-green-600" />
-                          <span className="font-medium text-green-900">Entrega via WhatsApp Business</span>
-                        </div>
-                        {allowReplies && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <MessagesSquare className="h-3 w-3" />
-                            <span>Chat interno será criado para respostas</span>
+              ) : (
+                announcements.map((ann) => {
+                  const catInfo = getCategoryInfo(ann.category)
+                  const CatIcon = catInfo.icon
+                  return (
+                    <Card key={ann.id} className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-default">
+                      <CardContent className="p-6">
+                        <div className="flex items-start gap-4">
+                          <div className={`h-12 w-12 rounded-xl ${catInfo.bg} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-200`}>
+                            <CatIcon className={`h-6 w-6 ${catInfo.color}`} />
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              <Badge variant="secondary" className={`${catInfo.bg} ${catInfo.color} border-0 text-xs font-medium`}>
+                                {catInfo.label}
+                              </Badge>
+                              {ann.allowReplies !== false ? (
+                                <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-0 text-[10px] gap-1 font-medium">
+                                  <Unlock className="h-3 w-3" />
+                                  Respostas abertas
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-gray-100 text-gray-500 border-0 text-[10px] gap-1 font-medium">
+                                  <Lock className="h-3 w-3" />
+                                  Respostas bloqueadas
+                                </Badge>
+                              )}
+                              {ann.totalConversations > 0 && (
+                                <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-0 text-[10px] gap-1 font-medium">
+                                  <MessageSquare className="h-3 w-3" />
+                                  {ann.totalConversations} {ann.totalConversations === 1 ? "responsável respondeu" : "responsáveis responderam"}
+                                </Badge>
+                              )}
+                              <Badge variant="secondary" className="bg-green-50 text-green-700 border-0 text-[10px] gap-1 font-medium">
+                                <Smartphone className="h-3 w-3" />
+                                WhatsApp
+                              </Badge>
+                              {getAudienceLabel(ann) && (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  {getAudienceLabel(ann)}
+                                </span>
+                              )}
+                              {ann.creator && (
+                                <span className="text-xs text-muted-foreground">
+                                  por {ann.creator.name}
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="text-base font-semibold text-gray-900 mb-1 group-hover:text-purple-700 transition-colors">
+                              {ann.title || "Sem título"}
+                            </h3>
+                            <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                              {ann.content}
+                            </p>
 
-            {/* AI Dialog */}
-            {showAIDialog && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <Card className="w-full max-w-2xl">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
-                          <Sparkles className="h-5 w-5 text-white" />
+                            {/* Stats */}
+                            <div className="flex items-center gap-5 mt-3 pt-3 border-t text-xs text-muted-foreground flex-wrap">
+                              <span className="flex items-center gap-1.5">
+                                <Users className="h-3.5 w-3.5" />
+                                {ann.totalRecipients} destinatário{ann.totalRecipients !== 1 ? "s" : ""}
+                              </span>
+                              <span className="flex items-center gap-1.5">
+                                <Send className="h-3.5 w-3.5" />
+                                {ann.totalRecipients} enviado{ann.totalRecipients !== 1 ? "s" : ""}
+                              </span>
+                              <span className={`flex items-center gap-1.5 ${ann.totalConversations > 0 ? "text-purple-600 font-semibold" : ""}`}>
+                                <MessageSquare className="h-3.5 w-3.5" />
+                                {ann.totalConversations} resposta{ann.totalConversations !== 1 ? "s" : ""}
+                              </span>
+                              <span className="flex items-center gap-1.5 ml-auto">
+                                <Clock className="h-3.5 w-3.5" />
+                                {new Date(ann.publishedAt || ann.createdAt).toLocaleDateString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle>Gerar Mensagem com IA</CardTitle>
-                          <CardDescription>Descreva o que deseja comunicar</CardDescription>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowAIDialog(false)}
-                      >
-                        <X className="h-5 w-5" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Textarea
-                      placeholder="Ex: Informar sobre reunião de pais na próxima sexta-feira às 18h..."
-                      className="min-h-[150px] resize-none border-2"
-                      value={aiPrompt}
-                      onChange={(e) => setAiPrompt(e.target.value)}
-                    />
-                    <div className="flex gap-3">
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => setShowAIDialog(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600"
-                        onClick={handleGenerateWithAI}
-                        disabled={!aiPrompt.trim() || isGenerating}
-                      >
-                        {isGenerating ? (
-                          <>
-                            <Sparkles className="mr-2 h-4 w-4 animate-spin" />
-                            Gerando...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Gerar Mensagem
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+                      </CardContent>
+                    </Card>
+                  )
+                })
+              )}
+            </div>
           </TabsContent>
 
-          {/* ==================== TAB 2: CHAT ==================== */}
-          <TabsContent value="chat" className="mt-8">
+          {/* ==================== TAB 2: CONVERSAS ==================== */}
+          <TabsContent value="conversas" className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
 
               {/* Conversations List */}
@@ -1054,54 +607,13 @@ export default function CommunicationPage() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <MessagesSquare className="h-5 w-5 text-blue-600" />
-                        <CardTitle className="text-lg">Chat Interno</CardTitle>
+                        <CardTitle className="text-lg">Conversas</CardTitle>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => setShowNewMessageModal(true)}
-                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                      >
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Nova Mensagem
-                      </Button>
-                    </div>
-
-                    {/* Tabs de tipo de conversa */}
-                    <div className="flex gap-2 mb-4">
-                      <Button
-                        variant={conversationType === "DIRECT" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          setConversationType("DIRECT")
-                          setUnreadOnly(false)
-                          setSelectedConversation(null)
-                        }}
-                        className={`flex-1 ${conversationType === "DIRECT" ? "bg-violet-100 hover:bg-violet-200 text-violet-900 border-violet-200" : ""}`}
-                      >
-                        Conversas
-                        {directUnreadCount > 0 && (
-                          <Badge className="ml-2 bg-red-500 text-white border-0 h-5 px-2">
-                            {directUnreadCount}
-                          </Badge>
-                        )}
-                      </Button>
-                      <Button
-                        variant={conversationType === "BROADCAST" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          setConversationType("BROADCAST")
-                          setUnreadOnly(false)
-                          setSelectedConversation(null)
-                        }}
-                        className={`flex-1 ${conversationType === "BROADCAST" ? "bg-violet-100 hover:bg-violet-200 text-violet-900 border-violet-200" : ""}`}
-                      >
-                        Comunicados
-                        {broadcastUnreadCount > 0 && (
-                          <Badge className="ml-2 bg-red-500 text-white border-0 h-5 px-2">
-                            {broadcastUnreadCount}
-                          </Badge>
-                        )}
-                      </Button>
+                      {chatUnreadCount > 0 && (
+                        <Badge className="bg-red-500 text-white border-0">
+                          {chatUnreadCount} não lida{chatUnreadCount !== 1 ? "s" : ""}
+                        </Badge>
+                      )}
                     </div>
 
                     <div className="space-y-3">
@@ -1144,89 +656,25 @@ export default function CommunicationPage() {
                           <p className="text-sm">Carregando...</p>
                         </div>
                       ) : conversations.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <MessagesSquare className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                          <p className="text-sm">Nenhuma conversa encontrada</p>
+                        <div className="text-center py-12 px-4">
+                          <div className="h-16 w-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                            <MessagesSquare className="h-8 w-8 text-blue-300" />
+                          </div>
+                          <p className="text-sm font-semibold text-gray-700 mb-1">Nenhuma conversa ainda</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed max-w-[260px] mx-auto">
+                            Conversas aparecerão quando responsáveis responderem a um comunicado, ou quando você iniciar uma conversa direta.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-4 gap-1.5 text-xs"
+                            onClick={() => setShowComposerModal(true)}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Nova conversa
+                          </Button>
                         </div>
-                      ) : conversationType === "BROADCAST" ? (
-                        // BROADCAST: Renderiza agrupados por turma em accordions
-                        groupedBroadcasts.map((group) => {
-                          const isExpanded = expandedGroups.has(group.groupKey)
-
-                          return (
-                            <div key={group.groupKey} className="space-y-2">
-                              {/* Cabeçalho do grupo (accordion) */}
-                              <button
-                                onClick={() => toggleGroupExpansion(group.groupKey)}
-                                className="w-full flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg hover:from-purple-100 hover:to-blue-100 transition-all"
-                              >
-                                <div className="h-8 w-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-                                  <Users className="h-4 w-4 text-purple-600" />
-                                </div>
-                                <div className="flex-1 text-left">
-                                  <p className="text-sm font-semibold text-purple-900">
-                                    📢 Comunicado para {group.className}
-                                  </p>
-                                  <p className="text-xs text-purple-500/70 italic truncate mb-0.5">
-                                    {group.conversations[0]?.subject}
-                                  </p>
-                                  <p className="text-xs text-purple-600">
-                                    {group.conversations.length} {group.conversations.length === 1 ? 'responsável' : 'responsáveis'}
-                                    {group.unreadCount > 0 && ` • ${group.unreadCount} não ${group.unreadCount === 1 ? 'lida' : 'lidas'}`}
-                                  </p>
-                                </div>
-                                {isExpanded ? (
-                                  <ChevronUp className="h-5 w-5 text-purple-600" />
-                                ) : (
-                                  <ChevronDown className="h-5 w-5 text-purple-600" />
-                                )}
-                              </button>
-
-                              {/* Conversas do grupo (expansível) */}
-                              {isExpanded && (
-                                <div className="ml-4 space-y-2 animate-in slide-in-from-top-2 fade-in-50 duration-200">
-                                  {group.conversations.map((conv) => {
-                                    const isActive = selectedConversation === conv.id
-
-                                    return (
-                                      <button
-                                        key={conv.id}
-                                        onClick={() => setSelectedConversation(conv.id)}
-                                        className={`w-full p-3 rounded-lg text-left transition-all ${isActive
-                                          ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
-                                          : "bg-white hover:bg-gray-50 border"
-                                          }`}
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2 flex-1">
-                                            <Avatar className="h-7 w-7">
-                                              <AvatarFallback className={isActive ? "bg-white/20 text-white" : "bg-gradient-to-br from-blue-600 to-purple-600 text-white text-xs"}>
-                                                {conv.parentName.charAt(0)}
-                                              </AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex-1 min-w-0">
-                                              <p className={`text-xs font-semibold truncate ${isActive ? "text-white" : "text-gray-900"}`}>
-                                                {conv.parentName}
-                                              </p>
-                                              <p className={`text-[10px] truncate ${isActive ? "text-white/80" : "text-muted-foreground"}`}>
-                                                {conv.studentName}
-                                              </p>
-                                            </div>
-                                          </div>
-                                          {conv.unread && (
-                                            <div className="h-2 w-2 rounded-full bg-red-500 flex-shrink-0" />
-                                          )}
-                                        </div>
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })
                       ) : (
-                        // DIRECT: Renderiza lista tradicional de conversas individuais
                         conversations.map((conv) => {
                           const isActive = selectedConversation === conv.id
 
@@ -1239,6 +687,19 @@ export default function CommunicationPage() {
                                 : "bg-white hover:bg-gray-50 border-2"
                                 }`}
                             >
+                              <div className="mb-1.5">
+                                {conv.announcementId ? (
+                                  <Badge className={`text-[10px] gap-1 ${isActive ? "bg-white/20 text-white border-white/30" : "bg-purple-100 text-purple-700 border-0"}`}>
+                                    <GraduationCap className="h-3 w-3" />
+                                    Resposta ao comunicado
+                                  </Badge>
+                                ) : (
+                                  <Badge className={`text-[10px] gap-1 ${isActive ? "bg-white/20 text-white border-white/30" : "bg-blue-100 text-blue-700 border-0"}`}>
+                                    <MessageSquare className="h-3 w-3" />
+                                    Conversa direta
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                   <Avatar className="h-8 w-8">
@@ -1256,12 +717,6 @@ export default function CommunicationPage() {
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
-                                  {conv.origin === "WHATSAPP" && (
-                                    <Badge className="bg-green-100 text-green-700 border-0 text-[10px] gap-1">
-                                      <Zap className="h-3 w-3" />
-                                      WhatsApp
-                                    </Badge>
-                                  )}
                                   {conv.unread && (
                                     <div className="h-2 w-2 rounded-full bg-red-500" />
                                   )}
@@ -1270,14 +725,6 @@ export default function CommunicationPage() {
                               <p className={`text-sm font-semibold mb-1 truncate ${isActive ? "text-white" : "text-gray-800"}`}>
                                 {conv.subject}
                               </p>
-
-                              {/* Context chips */}
-                              {conv.student && (
-                                <Badge className={`mb-1 text-[10px] ${isActive ? "bg-white/20 text-white border-white/30" : "bg-blue-100 text-blue-700 border-0"}`}>
-                                  <User className="h-3 w-3 mr-1" />
-                                  Aluno: {conv.student.user.name}
-                                </Badge>
-                              )}
 
                               {conv.messages && conv.messages.length > 0 && (
                                 <div className="flex items-center justify-between mt-1">
@@ -1317,15 +764,15 @@ export default function CommunicationPage() {
                             </CardDescription>
                           </div>
                         </div>
-                        {activeConversationFull.origin === "WHATSAPP" ? (
-                          <Badge className="bg-green-100 text-green-700 border-0 gap-1">
-                            <Zap className="h-3 w-3" />
-                            Origem: WhatsApp
+                        {activeConversationFull.announcementId ? (
+                          <Badge className="bg-purple-100 text-purple-700 border-0 gap-1">
+                            <BellRing className="h-3 w-3" />
+                            Via Comunicado
                           </Badge>
                         ) : (
                           <Badge className="bg-blue-100 text-blue-700 border-0 gap-1">
                             <MessagesSquare className="h-3 w-3" />
-                            Iniciado na plataforma
+                            Conversa Direta
                           </Badge>
                         )}
                       </div>
@@ -1370,39 +817,38 @@ export default function CommunicationPage() {
                               </div>
                             </div>
                           ))}
-                          {/* Âncora para auto-scroll */}
                           <div ref={messagesEndRef} />
                         </div>
                       )}
                     </ScrollArea>
 
-                      <Separator className="flex-shrink-0" />
-                      <div className="p-4 flex-shrink-0">
-                        <div className="flex items-center gap-3">
-                          <Textarea
-                            placeholder="Digite sua resposta..."
-                            className="flex-1 min-h-[60px] max-h-[120px] resize-none border-2"
-                            value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault()
-                                handleSendReply()
-                              }
-                            }}
-                            disabled={isSendingReply}
-                          />
-                          <Button
-                            size="icon"
-                            className="h-[60px] w-[60px] bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                            onClick={handleSendReply}
-                            disabled={!replyText.trim() || isSendingReply}
-                          >
-                            <Send className="h-5 w-5" />
-                          </Button>
-                        </div>
+                    <Separator className="flex-shrink-0" />
+                    <div className="p-4 flex-shrink-0">
+                      <div className="flex items-center gap-3">
+                        <Textarea
+                          placeholder="Digite sua resposta..."
+                          className="flex-1 min-h-[60px] max-h-[120px] resize-none border-2"
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault()
+                              handleSendReply()
+                            }
+                          }}
+                          disabled={isSendingReply}
+                        />
+                        <Button
+                          size="icon"
+                          className="h-[60px] w-[60px] bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                          onClick={handleSendReply}
+                          disabled={!replyText.trim() || isSendingReply}
+                        >
+                          <Send className="h-5 w-5" />
+                        </Button>
                       </div>
-                    </Card>
+                    </div>
+                  </Card>
                 ) : (
                   <Card className="border-0 shadow-xl h-[850px] flex items-center justify-center">
                     <div className="text-center text-muted-foreground">
@@ -1414,346 +860,53 @@ export default function CommunicationPage() {
                 )}
               </div>
             </div>
-
-            {/* Nova Mensagem Modal */}
-            {showNewMessageModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-                  <CardHeader className="border-b">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
-                          <MessageSquare className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle>Nova Mensagem Interna</CardTitle>
-                          <CardDescription>Iniciar conversa na plataforma (sem WhatsApp)</CardDescription>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowNewMessageModal(false)}
-                      >
-                        <X className="h-5 w-5" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="space-y-5">
-                      {/* Info Banner */}
-                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
-                        <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <div className="text-sm text-blue-900">
-                          <p className="font-semibold mb-1">Conversa exclusivamente interna</p>
-                          <p className="text-blue-700">Esta mensagem será enviada apenas pela plataforma. Não haverá notificação via WhatsApp.</p>
-                        </div>
-                      </div>
-
-                      {/* Categoria */}
-                      <div>
-                        <Label htmlFor="newMsgCategory">Categoria (opcional)</Label>
-                        <Select value={newMsgCategory} onValueChange={(val) => setNewMsgCategory(val as Category)}>
-                          <SelectTrigger className="mt-1.5 border-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((cat) => {
-                              const Icon = cat.icon
-                              return (
-                                <SelectItem key={cat.id} value={cat.id}>
-                                  <div className="flex items-center gap-2">
-                                    <Icon className={`h-4 w-4 ${cat.color}`} />
-                                    <span>{cat.label}</span>
-                                  </div>
-                                </SelectItem>
-                              )
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Tipo de Destinatário */}
-                      <div>
-                        <Label>Tipo de Destinatário</Label>
-                        <div className="grid grid-cols-2 gap-3 mt-1.5">
-                          <button
-                            onClick={() => setNewMsgRecipientType("turma")}
-                            className={`p-4 rounded-xl border-2 transition-all ${newMsgRecipientType === "turma"
-                              ? "border-blue-600 bg-blue-50"
-                              : "border-gray-200 hover:border-gray-300"
-                              }`}
-                          >
-                            <School className={`h-5 w-5 mx-auto mb-2 ${newMsgRecipientType === "turma" ? "text-blue-600" : "text-gray-400"}`} />
-                            <span className={`text-sm font-medium ${newMsgRecipientType === "turma" ? "text-blue-900" : "text-gray-600"}`}>
-                              Turma Inteira
-                            </span>
-                          </button>
-                          <button
-                            onClick={() => setNewMsgRecipientType("aluno")}
-                            className={`p-4 rounded-xl border-2 transition-all ${newMsgRecipientType === "aluno"
-                              ? "border-purple-600 bg-purple-50"
-                              : "border-gray-200 hover:border-gray-300"
-                              }`}
-                          >
-                            <User className={`h-5 w-5 mx-auto mb-2 ${newMsgRecipientType === "aluno" ? "text-purple-600" : "text-gray-400"}`} />
-                            <span className={`text-sm font-medium ${newMsgRecipientType === "aluno" ? "text-purple-900" : "text-gray-600"}`}>
-                              Aluno Específico
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Selecionar Turma */}
-                      {newMsgRecipientType === "turma" && (
-                        <div className="space-y-3">
-                          <div>
-                            <Label htmlFor="newMsgClass">Selecionar Turma</Label>
-                            <Select value={newMsgClass} onValueChange={setNewMsgClass} disabled={isLoadingRecipients}>
-                              <SelectTrigger className="mt-1.5 border-2">
-                                <SelectValue placeholder={isLoadingRecipients ? "Carregando..." : "Escolha uma turma"} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {classes.length === 0 ? (
-                                  <div className="p-2 text-sm text-muted-foreground text-center">
-                                    Nenhuma turma encontrada
-                                  </div>
-                                ) : (
-                                  classes.map((cls) => (
-                                    <SelectItem key={cls.id} value={cls.id}>
-                                      {cls.name}
-                                    </SelectItem>
-                                  ))
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* Indicador de Responsáveis */}
-                          {newMsgClass && (() => {
-                            const selectedClass = classes.find(c => c.id === newMsgClass)
-                            console.log("Selected class for recipient count:", selectedClass)
-                            if (!selectedClass) return null
-                            const parentCount = selectedClass.parentCount
-                            console.log(parentCount)
-                            return (
-                              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-                                <Users className="h-4 w-4 text-blue-600" />
-                                <span className="text-sm font-medium text-blue-900">
-                                  {parentCount} {parentCount === 1 ? 'responsável selecionado' : 'responsáveis selecionados'}
-                                </span>
-                              </div>
-                            )
-                          })()}
-                        </div>
-                      )}
-
-                      {/* Selecionar Aluno */}
-                      {newMsgRecipientType === "aluno" && (
-                        <div className="space-y-3">
-                          <div>
-                            <Label htmlFor="newMsgStudent">Selecionar Aluno</Label>
-                            <Select value={newMsgStudent} onValueChange={setNewMsgStudent} disabled={isLoadingRecipients}>
-                              <SelectTrigger className="mt-1.5 border-2">
-                                <SelectValue placeholder={isLoadingRecipients ? "Carregando..." : "Escolha um aluno"} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {students.length === 0 ? (
-                                  <div className="p-2 text-sm text-muted-foreground text-center">
-                                    Nenhum aluno encontrado
-                                  </div>
-                                ) : (
-                                  students.map((student) => (
-                                    <SelectItem key={student.id} value={student.id}>
-                                      {student.name} ({student.className})
-                                    </SelectItem>
-                                  ))
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* Indicador de Responsáveis */}
-                          {newMsgStudent && (() => {
-                            const selectedStudent = students.find(s => s.id === newMsgStudent)
-                            if (!selectedStudent) return null
-                            const parentCount = selectedStudent.parents.length
-                            return (
-                              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Users className="h-4 w-4 text-purple-600" />
-                                  <span className="text-sm font-medium text-purple-900">
-                                    {parentCount} {parentCount === 1 ? 'responsável selecionado' : 'responsáveis selecionados'}
-                                  </span>
-                                </div>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <button className="text-xs text-purple-600 hover:text-purple-800 underline">
-                                        Ver nomes
-                                      </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <div className="space-y-1">
-                                        {selectedStudent.parents.map((parent) => (
-                                          <p key={parent.id} className="text-sm">{parent.name}</p>
-                                        ))}
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            )
-                          })()}
-                        </div>
-                      )}
-
-                      {/* Assunto */}
-                      <div>
-                        <Label htmlFor="newMsgSubject">Assunto (opcional)</Label>
-                        <Input
-                          id="newMsgSubject"
-                          placeholder="Ex: Dúvida sobre atividade"
-                          className="mt-1.5 border-2"
-                          value={newMsgSubject}
-                          onChange={(e) => setNewMsgSubject(e.target.value)}
-                        />
-                      </div>
-
-                      {/* Mensagem */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <Label htmlFor="newMsgMessage">Mensagem *</Label>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setShowNewMsgAIDialog(true)}
-                            className="gap-2"
-                          >
-                            <Sparkles className="h-4 w-4 text-purple-600" />
-                            Gerar com IA
-                          </Button>
-                        </div>
-                        <Textarea
-                          id="newMsgMessage"
-                          placeholder="Digite sua mensagem..."
-                          className="min-h-[120px] border-2"
-                          value={newMsgMessage}
-                          onChange={(e) => setNewMsgMessage(e.target.value)}
-                          maxLength={1000}
-                        />
-                        <div className="flex items-center justify-between mt-1.5">
-                          <p className="text-xs text-muted-foreground">
-                            Máximo 1000 caracteres
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {newMsgMessage.length}/1000
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-3 pt-4">
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => setShowNewMessageModal(false)}
-                        >
-                          Cancelar
-                        </Button>
-                        <Button
-                          className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                          onClick={handleCreateConversation}
-                          disabled={!newMsgMessage.trim() || isCreatingConversation}
-                        >
-                          {isCreatingConversation ? (
-                            <>
-                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                              Criando...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="h-4 w-4 mr-2" />
-                              Criar Conversa
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* AI Dialog for Nova Mensagem */}
-            {showNewMsgAIDialog && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-                <Card className="w-full max-w-2xl">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
-                          <Sparkles className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle>Gerar Mensagem com IA</CardTitle>
-                          <CardDescription>Descreva o que deseja comunicar</CardDescription>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowNewMsgAIDialog(false)}
-                      >
-                        <X className="h-5 w-5" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="newMsgAIPrompt">O que você quer comunicar?</Label>
-                        <Textarea
-                          id="newMsgAIPrompt"
-                          placeholder="Ex: Informar sobre mudança de horário da aula de matemática na próxima semana"
-                          className="mt-1.5 min-h-[100px] border-2"
-                          value={newMsgAIPrompt}
-                          onChange={(e) => setNewMsgAIPrompt(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex gap-3">
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => setShowNewMsgAIDialog(false)}
-                        >
-                          Cancelar
-                        </Button>
-                        <Button
-                          className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                          onClick={handleGenerateNewMsgWithAI}
-                          disabled={!newMsgAIPrompt.trim() || isGeneratingNewMsg}
-                        >
-                          {isGeneratingNewMsg ? (
-                            <>
-                              <div className="h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Gerando...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="h-4 w-4 mr-2" />
-                              Gerar Mensagem
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
           </TabsContent>
         </Tabs>
+
+        {/* ==================== MODAL: Novo Comunicado ==================== */}
+        <NewCommunicationModal
+          open={showComposerModal}
+          onClose={() => setShowComposerModal(false)}
+          classes={classes}
+          students={students}
+          isLoadingRecipients={isLoadingRecipients}
+          onSendAnnouncement={async (payload) => {
+            const response = await fetch("/api/announcements", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            })
+            if (!response.ok) {
+              const err = await response.json()
+              throw new Error(err.error || "Erro ao enviar comunicado")
+            }
+            const data = await response.json()
+            toast.success("Comunicado publicado!", {
+              description: `${data.recipientCount} destinatário(s) notificados.${payload.allowReplies ? " Chat será criado quando responderem." : ""}`,
+            })
+            setShowComposerModal(false)
+            await fetchBadges()
+            await fetchAnnouncements()
+          }}
+          onCreateConversation={async (payload) => {
+            const response = await fetch("/api/chat/conversations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            })
+            if (!response.ok) {
+              const err = await response.json()
+              throw new Error(err.error || "Erro ao criar conversa")
+            }
+            toast.success("Conversa iniciada!", {
+              description: "A conversa aparecerá na aba Conversas.",
+            })
+            setShowComposerModal(false)
+            setActiveTab("conversas")
+            await fetchConversations()
+            await fetchBadges()
+          }}
+        />
       </div>
     </div>
   )
