@@ -101,23 +101,6 @@ export async function GET(request: NextRequest) {
             category: true,
           },
         },
-        class: {
-          select: {
-            id: true,
-            name: true,
-            grade: true,
-          },
-        },
-        student: {
-          select: {
-            id: true,
-            user: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
       },
       orderBy: {
         updatedAt: "desc",
@@ -156,7 +139,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/chat/conversations - Cria conversas 1:1 com responsáveis
+// POST /api/chat/conversations - Cria conversa direta 1:1 (staff → parent)
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -173,169 +156,80 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
 
-    // PARENT não pode criar conversa
     if (currentUser.role === "PARENT") {
       return NextResponse.json(
-        { error: "Responsáveis não podem criar conversas" },
+        { error: "Responsáveis não podem criar conversas diretamente" },
         { status: 403 }
       )
     }
 
     const body = await request.json()
-    const { audienceType, classId, studentId, message, subject } = body
+    const { parentUserId, message, subject } = body
 
-    // Validações
-    if (!audienceType || !message) {
+    if (!parentUserId || !message) {
       return NextResponse.json(
-        { error: "Tipo de destinatário e mensagem são obrigatórios" },
+        { error: "parentUserId e message são obrigatórios" },
         { status: 400 }
       )
     }
 
-    if (!["CLASS", "STUDENT"].includes(audienceType)) {
+    // Valida que o parent existe e pertence à mesma escola
+    const parentUser = await prisma.user.findFirst({
+      where: {
+        id: parentUserId,
+        role: "PARENT",
+        schoolId: currentUser.schoolId,
+        isActive: true,
+      },
+    })
+
+    if (!parentUser) {
       return NextResponse.json(
-        { error: "Tipo de destinatário inválido" },
-        { status: 400 }
+        { error: "Responsável não encontrado" },
+        { status: 404 }
       )
     }
 
-    if (audienceType === "CLASS" && !classId) {
-      return NextResponse.json({ error: "ID da turma é obrigatório" }, { status: 400 })
-    }
-
-    if (audienceType === "STUDENT" && !studentId) {
-      return NextResponse.json({ error: "ID do aluno é obrigatório" }, { status: 400 })
-    }
-
-    // Resolve destinatários (pais ativos)
-    let recipientUserIds: string[] = []
-    let contextClassId: string | null = null
-    let contextStudentId: string | null = null
-
-    if (audienceType === "CLASS") {
-      contextClassId = classId
-      const students = await prisma.student.findMany({
-        where: {
-          classId,
+    // Cria conversa direta + participantes + primeira mensagem
+    const conversation = await prisma.$transaction(async (tx) => {
+      const conv = await tx.conversation.create({
+        data: {
           schoolId: currentUser.schoolId,
-        },
-        include: {
-          parents: {
-            include: {
-              user: true,
-            },
-          },
+          status: "OPEN",
+          subject: subject || null,
+          parentUserId: parentUser.id,
         },
       })
 
-      const parentIds = new Set<string>()
-      students.forEach((student) => {
-        student.parents.forEach((parent) => {
-          if (parent.user.isActive) {
-            parentIds.add(parent.user.id)
-          }
-        })
+      await tx.conversationParticipant.createMany({
+        data: [
+          { conversationId: conv.id, userId: currentUser.id },
+          { conversationId: conv.id, userId: parentUser.id },
+        ],
       })
 
-      recipientUserIds = Array.from(parentIds)
-    } else {
-      contextStudentId = studentId
-      const student = await prisma.student.findFirst({
-        where: {
-          id: studentId,
-          schoolId: currentUser.schoolId,
-        },
-        include: {
-          parents: {
-            include: {
-              user: true,
-            },
-          },
+      await tx.conversationMessage.create({
+        data: {
+          conversationId: conv.id,
+          senderId: currentUser.id,
+          body: message,
         },
       })
 
-      if (!student) {
-        return NextResponse.json({ error: "Aluno não encontrado" }, { status: 404 })
-      }
-
-      recipientUserIds = student.parents
-        .filter((parent) => parent.user.isActive)
-        .map((parent) => parent.user.id)
-    }
-
-    if (recipientUserIds.length === 0) {
-      return NextResponse.json(
-        { error: "Nenhum destinatário encontrado" },
-        { status: 400 }
-      )
-    }
-
-    // Cria N conversas 1:1 (uma por responsável)
-    const createdConversations = await prisma.$transaction(async (tx) => {
-      const conversations = []
-
-      for (const recipientUserId of recipientUserIds) {
-        // Define o tipo de conversa baseado no audienceType
-        const conversationType = audienceType === "CLASS" ? "BROADCAST" : "DIRECT"
-
-        // Cria conversa
-        const conversation = await tx.conversation.create({
-          data: {
-            schoolId: currentUser.schoolId,
-            type: conversationType,
-            status: "OPEN",
-            subject: subject || null,
-            audienceType: audienceType,
-            classId: contextClassId,
-            studentId: contextStudentId,
-          },
-        })
-
-        // Cria 2 participantes: sender + recipient
-        await tx.conversationParticipant.createMany({
-          data: [
-            { conversationId: conversation.id, userId: currentUser.id },
-            { conversationId: conversation.id, userId: recipientUserId },
-          ],
-        })
-
-        // Cria primeira mensagem
-        await tx.conversationMessage.create({
-          data: {
-            conversationId: conversation.id,
-            senderId: currentUser.id,
-            body: message,
-          },
-        })
-
-        conversations.push(conversation)
-      }
-
-      return conversations
+      return conv
     })
 
     return NextResponse.json(
       {
-        message: "Conversas criadas com sucesso",
-        recipientCount: recipientUserIds.length,
-        createdCount: createdConversations.length,
-        firstConversationId: createdConversations[0]?.id || null,
-        type: createdConversations[0]?.type || "DIRECT",
+        id: conversation.id,
+        message: "Conversa criada com sucesso",
       },
       { status: 201 }
     )
   } catch (error) {
-    console.error("❌ Error creating conversations:", error)
-    console.error("Error details:", {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    })
+    console.error("Error creating conversation:", error)
     return NextResponse.json(
-      {
-        error: "Erro ao criar conversas",
-        details: error instanceof Error ? error.message : String(error)
-      },
+      { error: "Erro ao criar conversa" },
       { status: 500 }
     )
   }

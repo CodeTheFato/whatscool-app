@@ -1,0 +1,171 @@
+// ==================== COMMUNICATION ====================
+// Comunicados, Delivery Tracking e Conversas (Chat Interno)
+
+// =====================================================================
+// ANNOUNCEMENTS — fonte da verdade de conteúdo + targeting
+// =====================================================================
+
+enum AnnouncementCategory {
+  COMUNICADOS // Comunicados gerais
+  BOLETOS // Boletos e cobranças
+  ATRASO_BOLETOS // Atraso de boletos
+  AVISOS // Avisos gerais
+}
+
+enum AnnouncementAudienceType {
+  ALL_SCHOOL // Toda a escola
+  CLASS // Turma específica
+  STUDENT // Aluno específico
+  CUSTOM // Destinatários customizados
+}
+
+model Announcement {
+  id                String                   @id @default(uuid())
+  schoolId          String                   @map("school_id")
+  createdById       String                   @map("created_by_id")
+  category          AnnouncementCategory
+  audienceType      AnnouncementAudienceType @map("audience_type")
+  classId           String?                  @map("class_id")
+  studentId         String?                  @map("student_id")
+  title             String
+  content           String                   @db.Text
+  allowReplies      Boolean                  @default(true) @map("allow_replies")
+  notifyViaWhatsapp Boolean                  @default(false) @map("notify_via_whatsapp")
+  publishedAt       DateTime?                @map("published_at")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+
+  // Relations
+  school        School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  creator       User                    @relation("CreatedAnnouncements", fields: [createdById], references: [id], onDelete: Cascade)
+  class         Class?                  @relation(fields: [classId], references: [id], onDelete: SetNull)
+  student       Student?                @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  recipients    AnnouncementRecipient[]
+  conversations Conversation[]
+
+  @@index([schoolId, publishedAt])
+  @@index([schoolId, category])
+  @@index([schoolId, audienceType])
+  @@map("announcements")
+}
+
+// =====================================================================
+// ANNOUNCEMENT RECIPIENTS — delivery/read receipt por usuário
+// Preparado para integração futura com WhatsApp
+// =====================================================================
+
+enum DeliveryProvider {
+  PLATFORM // Entrega interna via plataforma
+  WHATSAPP // Entrega via WhatsApp Business API
+}
+
+enum DeliveryStatus {
+  PENDING // Aguardando envio
+  SENT // Enviado ao provedor
+  DELIVERED // Confirmação de entrega ao dispositivo
+  READ // Lido pelo destinatário
+  FAILED // Falha no envio
+}
+
+model AnnouncementRecipient {
+  id                String           @id @default(uuid())
+  announcementId    String           @map("announcement_id")
+  userId            String           @map("user_id")
+  // Delivery tracking
+  provider          DeliveryProvider @default(PLATFORM)
+  status            DeliveryStatus   @default(PENDING)
+  sentAt            DateTime?        @map("sent_at")
+  deliveredAt       DateTime?        @map("delivered_at")
+  readAt            DateTime?        @map("read_at")
+  // Campos para tracking de provedor externo (WhatsApp futuro)
+  providerMessageId String?          @map("provider_message_id")
+  errorCode         String?          @map("error_code")
+  errorMessage      String?          @map("error_message")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId, provider])
+  @@index([userId, status])
+  @@index([announcementId, deliveredAt])
+  @@index([provider, status])
+  @@map("announcement_recipients")
+}
+
+// =====================================================================
+// CONVERSATIONS — thread de troca de mensagens
+// Se announcementId != null → thread de resposta a comunicado (1 por responsável)
+// Se announcementId == null → conversa direta (subject obrigatório no app layer)
+// =====================================================================
+
+enum ConversationStatus {
+  OPEN
+  CLOSED
+}
+
+model Conversation {
+  id             String             @id @default(uuid())
+  schoolId       String             @map("school_id")
+  announcementId String?            @map("announcement_id")
+  parentUserId   String?            @map("parent_user_id")
+  status         ConversationStatus @default(OPEN)
+  subject        String? // Usado apenas em conversas diretas (sem announcement)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  school       School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  announcement Announcement?             @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  parentUser   User?                     @relation("OwnedConversations", fields: [parentUserId], references: [id], onDelete: SetNull)
+  participants ConversationParticipant[]
+  messages     ConversationMessage[]
+
+  // Garante no máximo 1 thread por (announcement + responsável)
+  // Para conversas diretas (announcementId=null), o unique não se aplica (NULL != NULL em SQL)
+  @@unique([announcementId, parentUserId])
+  @@index([schoolId, status])
+  @@index([announcementId])
+  @@index([parentUserId])
+  @@map("conversations")
+}
+
+// =====================================================================
+// CONVERSATION PARTICIPANTS & MESSAGES
+// =====================================================================
+
+model ConversationParticipant {
+  id             String    @id @default(uuid())
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  lastReadAt     DateTime? @map("last_read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model ConversationMessage {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  senderId       String   @map("sender_id")
+  body           String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@map("conversation_messages")
+}

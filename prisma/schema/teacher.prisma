@@ -1,0 +1,40 @@
+// ==================== TEACHERS ====================
+// Professores
+
+model Teacher {
+  id             String        @id @default(uuid())
+  userId         String        @unique @map("user_id")
+  schoolId       String        @map("school_id")
+  registrationId String        @map("registration_id")
+  cpf            String        @unique
+  dateOfBirth    DateTime      @map("date_of_birth")
+  address        String?
+  city           String?
+  state          String?
+  zipCode        String?       @map("zip_code")
+  specialization String?
+  hireDate       DateTime      @default(now()) @map("hire_date")
+  status         TeacherStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  subjects    Subject[]
+  classes     Class[]
+  activities  Activity[]
+  grades      Grade[]
+  attendances Attendance[]
+  schedules   Schedule[]
+
+  @@unique([schoolId, registrationId])
+  @@index([schoolId, status])
+  @@map("teachers")
+}
+
+enum TeacherStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
