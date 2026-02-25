@@ -30,13 +30,11 @@ export async function PATCH(
     })
 
     if (updated.count === 0) {
-      // Verifica se o recipient existe
-      const exists = await prisma.announcementRecipient.findUnique({
+      // Verifica se o recipient existe (qualquer provider)
+      const exists = await prisma.announcementRecipient.findFirst({
         where: {
-          announcementId_userId: {
-            announcementId,
-            userId: session.user.id,
-          },
+          announcementId,
+          userId: session.user.id,
         },
       })
 

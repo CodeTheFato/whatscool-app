@@ -28,6 +28,7 @@ import {
   Unlock,
   GraduationCap,
   Smartphone,
+  Monitor,
 } from "lucide-react"
 import { toast } from "sonner"
 import NewCommunicationModal from "@/components/secretary/NewCommunicationModal"
@@ -72,7 +73,8 @@ type AnnouncementItem = {
   createdAt: string
   totalRecipients: number
   totalConversations: number
-  allowReplies?: boolean // mock frontend — será backend futuramente
+  allowReplies?: boolean
+  notifyViaWhatsapp?: boolean
 }
 
 // ==================== HELPERS ====================
@@ -219,8 +221,7 @@ export default function CommunicationPage() {
       const response = await fetch('/api/announcements')
       if (!response.ok) throw new Error('Erro ao buscar comunicados')
       const data = await response.json()
-      // Mock: todos comunicados permitem resposta por padrão (será backend futuramente)
-      setAnnouncements(data.map((a: any) => ({ ...a, allowReplies: true })))
+      setAnnouncements(data)
     } catch (error) {
       console.error('Erro ao buscar comunicados:', error)
     } finally {
@@ -539,10 +540,17 @@ export default function CommunicationPage() {
                                   {ann.totalConversations} {ann.totalConversations === 1 ? "responsável respondeu" : "responsáveis responderam"}
                                 </Badge>
                               )}
-                              <Badge variant="secondary" className="bg-green-50 text-green-700 border-0 text-[10px] gap-1 font-medium">
-                                <Smartphone className="h-3 w-3" />
-                                WhatsApp
-                              </Badge>
+                              {ann.notifyViaWhatsapp ? (
+                                <Badge variant="secondary" className="bg-green-50 text-green-700 border-0 text-[10px] gap-1 font-medium">
+                                  <Smartphone className="h-3 w-3" />
+                                  WhatsApp
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-blue-50 text-blue-500 border-0 text-[10px] gap-1 font-medium">
+                                  <Monitor className="h-3 w-3" />
+                                  Plataforma
+                                </Badge>
+                              )}
                               {getAudienceLabel(ann) && (
                                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                                   <Users className="h-3 w-3" />
@@ -881,8 +889,10 @@ export default function CommunicationPage() {
               throw new Error(err.error || "Erro ao enviar comunicado")
             }
             const data = await response.json()
+            const count = data.stats?.recipientsCount ?? data.recipientCount ?? 0
+            const providers = data.stats?.providers ?? ["PLATFORM"]
             toast.success("Comunicado publicado!", {
-              description: `${data.recipientCount} destinatário(s) notificados.${payload.allowReplies ? " Chat será criado quando responderem." : ""}`,
+              description: `${count} destinatário(s) notificados via ${providers.join(" + ")}.${payload.allowReplies ? " Conversas serão criadas quando responderem." : ""}`,
             })
             setShowComposerModal(false)
             await fetchBadges()

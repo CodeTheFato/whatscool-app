@@ -25,6 +25,8 @@ import {
   Lock,
   Unlock,
   GraduationCap,
+  Smartphone,
+  Monitor,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -83,7 +85,9 @@ interface AnnouncementItem {
   readAt: string | null
   deliveredAt: string | null
   unread: boolean
-  allowReplies?: boolean // mock frontend — será backend futuramente
+  allowReplies?: boolean
+  notifyViaWhatsapp?: boolean
+  provider?: string
 }
 
 // ==================== HELPERS ====================
@@ -149,8 +153,7 @@ export default function ParentMessagesPage() {
       const response = await fetch('/api/announcements')
       if (!response.ok) throw new Error('Erro ao buscar comunicados')
       const data = await response.json()
-      // Mock: todos comunicados permitem resposta por padrão (será backend futuramente)
-      setAnnouncements(data.map((a: any) => ({ ...a, allowReplies: true })))
+      setAnnouncements(data)
     } catch (error) {
       console.error('Erro ao buscar comunicados:', error)
     } finally {
@@ -439,7 +442,18 @@ export default function ParentMessagesPage() {
                                   ) : (
                                     <Badge variant="secondary" className="bg-gray-100 text-gray-400 border-0 text-[10px] gap-1">
                                       <Lock className="h-2.5 w-2.5" />
-                                      Sem respostas
+                                      Respostas bloqueadas
+                                    </Badge>
+                                  )}
+                                  {ann.notifyViaWhatsapp ? (
+                                    <Badge variant="secondary" className="bg-green-50 text-green-600 border-0 text-[10px] gap-1">
+                                      <Smartphone className="h-2.5 w-2.5" />
+                                      WhatsApp
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="bg-blue-50 text-blue-500 border-0 text-[10px] gap-1">
+                                      <Monitor className="h-2.5 w-2.5" />
+                                      Plataforma
                                     </Badge>
                                   )}
                                   {ann.creator && (
@@ -555,7 +569,7 @@ export default function ParentMessagesPage() {
                               <Lock className="h-5 w-5 text-gray-400" />
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-gray-500">Respostas encerradas</p>
+                              <p className="text-sm font-semibold text-gray-500">Respostas bloqueadas</p>
                               <p className="text-xs text-gray-400">Este comunicado não aceita respostas no momento.</p>
                             </div>
                           </div>

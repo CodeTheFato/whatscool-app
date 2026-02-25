@@ -75,6 +75,7 @@ interface NewCommunicationModalProps {
     title?: string
     content: string
     allowReplies: boolean
+    notifyViaWhatsapp: boolean
   }) => Promise<void>
   onCreateConversation: (payload: {
     category: string
@@ -213,6 +214,7 @@ export default function NewCommunicationModal({
           title: subject || undefined,
           content: message,
           allowReplies,
+          notifyViaWhatsapp: sendViaWhatsApp,
         })
       } else {
         await onCreateConversation({
