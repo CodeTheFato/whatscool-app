@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { sendWhatsappJobsBatch, type WhatsappJob } from "@/lib/aws/sqs"
 
 // GET /api/announcements — Lista comunicados
 // STAFF: todos da escola
@@ -267,6 +268,62 @@ export async function POST(request: NextRequest) {
       return announcement
     })
 
+    // ===== SQS: enfileirar jobs de WhatsApp =====
+    let queueResult: { enqueued: boolean; success: number; failed: number } = {
+      enqueued: false,
+      success: 0,
+      failed: 0,
+    }
+
+    if (notifyViaWhatsapp) {
+      const queueUrl = process.env.SQS_WHATSAPP_QUEUE_URL
+      if (!queueUrl) {
+        console.error(
+          `[SQS] SQS_WHATSAPP_QUEUE_URL não configurada. announcementId=${result.id}`
+        )
+      } else {
+        const jobs: WhatsappJob[] = recipientUserIds.map((recipientUserId) => ({
+          version: 1,
+          type: "WHATSAPP_ANNOUNCEMENT",
+          announcementId: result.id,
+          schoolId: currentUser.schoolId,
+          createdById: currentUser.id,
+          recipientUserId,
+          audienceType,
+          classId: audienceType === "CLASS" ? classId : null,
+          studentId: audienceType === "STUDENT" ? studentId : null,
+          category,
+          title: result.title,
+          content: result.content,
+          allowReplies: Boolean(allowReplies),
+          notifyViaWhatsapp: true as const,
+          createdAt: new Date().toISOString(),
+        }))
+
+        try {
+          const batchResult = await sendWhatsappJobsBatch(queueUrl, jobs)
+          queueResult = {
+            enqueued: true,
+            success: batchResult.success,
+            failed: batchResult.failed,
+          }
+          console.log(
+            `[SQS] Enqueued ${batchResult.success}/${batchResult.total} jobs for announcementId=${result.id}`
+          )
+        } catch (err) {
+          console.error(
+            `[SQS] Falha ao publicar jobs no SQS. announcementId=${result.id}`,
+            err
+          )
+          queueResult = {
+            enqueued: false,
+            success: 0,
+            failed: recipientUserIds.length,
+          }
+        }
+      }
+    }
+
     // ===== Response =====
     const providers: string[] = ["PLATFORM"]
     if (notifyViaWhatsapp) providers.push("WHATSAPP")
@@ -291,7 +348,15 @@ export async function POST(request: NextRequest) {
           providers,
           platform: { count: recipientUserIds.length, status: "SENT" },
           ...(notifyViaWhatsapp
-            ? { whatsapp: { count: recipientUserIds.length, status: "PENDING" } }
+            ? {
+              whatsapp: {
+                count: recipientUserIds.length,
+                status: "PENDING",
+                queueEnqueued: queueResult.enqueued,
+                enqueuedCount: queueResult.success,
+                failedCount: queueResult.failed,
+              },
+            }
             : {}),
         },
       },
