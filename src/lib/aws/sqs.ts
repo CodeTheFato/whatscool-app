@@ -26,8 +26,10 @@ export interface WhatsappJob {
   type: string
   announcementId: string
   schoolId: string
+  schoolName: string | null
   createdById: string
   recipientUserId: string
+  recipientPhone: string | null
   audienceType: string
   classId: string | null
   studentId: string | null

@@ -165,8 +165,15 @@ export async function POST(request: NextRequest) {
     // Aceita tanto "content" quanto "message" do body por compatibilidade
     const messageBody = (content || body.message || "").trim()
 
+    // Buscar nome da escola para incluir no job SQS
+    const school = await prisma.school.findUnique({
+      where: { id: currentUser.schoolId },
+      select: { name: true },
+    })
+
     // ===== Ownership validation + Resolve recipients =====
     let recipientUserIds: string[] = []
+    const recipientPhoneMap = new Map<string, string | null>()
 
     if (audienceType === "CLASS") {
       // Verifica ownership: turma pertence à escola do user
@@ -181,14 +188,17 @@ export async function POST(request: NextRequest) {
       const students = await prisma.student.findMany({
         where: { classId, schoolId: currentUser.schoolId, status: "ACTIVE" },
         include: {
-          parents: { include: { user: { select: { id: true, isActive: true } } } },
+          parents: { include: { user: { select: { id: true, isActive: true, phone: true } } } },
         },
       })
 
       const parentIds = new Set<string>()
       for (const s of students) {
         for (const p of s.parents) {
-          if (p.user.isActive) parentIds.add(p.user.id)
+          if (p.user.isActive) {
+            parentIds.add(p.user.id)
+            recipientPhoneMap.set(p.user.id, p.user.phone ?? null)
+          }
         }
       }
       recipientUserIds = Array.from(parentIds)
@@ -197,7 +207,7 @@ export async function POST(request: NextRequest) {
       const student = await prisma.student.findFirst({
         where: { id: studentId, schoolId: currentUser.schoolId },
         include: {
-          parents: { include: { user: { select: { id: true, isActive: true } } } },
+          parents: { include: { user: { select: { id: true, isActive: true, phone: true } } } },
         },
       })
       if (!student) {
@@ -206,7 +216,10 @@ export async function POST(request: NextRequest) {
 
       const parentIds = new Set<string>()
       for (const p of student.parents) {
-        if (p.user.isActive) parentIds.add(p.user.id)
+        if (p.user.isActive) {
+          parentIds.add(p.user.id)
+          recipientPhoneMap.set(p.user.id, p.user.phone ?? null)
+        }
       }
       recipientUserIds = Array.from(parentIds)
     }
@@ -287,8 +300,10 @@ export async function POST(request: NextRequest) {
           type: "WHATSAPP_ANNOUNCEMENT",
           announcementId: result.id,
           schoolId: currentUser.schoolId,
+          schoolName: school?.name ?? null,
           createdById: currentUser.id,
           recipientUserId,
+          recipientPhone: recipientPhoneMap.get(recipientUserId) ?? null,
           audienceType,
           classId: audienceType === "CLASS" ? classId : null,
           studentId: audienceType === "STUDENT" ? studentId : null,
