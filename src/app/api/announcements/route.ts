@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { sendWhatsappJobsBatch, type WhatsappJob } from "@/lib/aws/sqs"
 
 // GET /api/announcements — Lista comunicados
 // STAFF: todos da escola
@@ -164,8 +165,15 @@ export async function POST(request: NextRequest) {
     // Aceita tanto "content" quanto "message" do body por compatibilidade
     const messageBody = (content || body.message || "").trim()
 
+    // Buscar nome da escola para incluir no job SQS
+    const school = await prisma.school.findUnique({
+      where: { id: currentUser.schoolId },
+      select: { name: true },
+    })
+
     // ===== Ownership validation + Resolve recipients =====
     let recipientUserIds: string[] = []
+    const recipientPhoneMap = new Map<string, string | null>()
 
     if (audienceType === "CLASS") {
       // Verifica ownership: turma pertence à escola do user
@@ -180,14 +188,17 @@ export async function POST(request: NextRequest) {
       const students = await prisma.student.findMany({
         where: { classId, schoolId: currentUser.schoolId, status: "ACTIVE" },
         include: {
-          parents: { include: { user: { select: { id: true, isActive: true } } } },
+          parents: { include: { user: { select: { id: true, isActive: true, phone: true } } } },
         },
       })
 
       const parentIds = new Set<string>()
       for (const s of students) {
         for (const p of s.parents) {
-          if (p.user.isActive) parentIds.add(p.user.id)
+          if (p.user.isActive) {
+            parentIds.add(p.user.id)
+            recipientPhoneMap.set(p.user.id, p.user.phone ?? null)
+          }
         }
       }
       recipientUserIds = Array.from(parentIds)
@@ -196,7 +207,7 @@ export async function POST(request: NextRequest) {
       const student = await prisma.student.findFirst({
         where: { id: studentId, schoolId: currentUser.schoolId },
         include: {
-          parents: { include: { user: { select: { id: true, isActive: true } } } },
+          parents: { include: { user: { select: { id: true, isActive: true, phone: true } } } },
         },
       })
       if (!student) {
@@ -205,7 +216,10 @@ export async function POST(request: NextRequest) {
 
       const parentIds = new Set<string>()
       for (const p of student.parents) {
-        if (p.user.isActive) parentIds.add(p.user.id)
+        if (p.user.isActive) {
+          parentIds.add(p.user.id)
+          recipientPhoneMap.set(p.user.id, p.user.phone ?? null)
+        }
       }
       recipientUserIds = Array.from(parentIds)
     }
@@ -267,6 +281,64 @@ export async function POST(request: NextRequest) {
       return announcement
     })
 
+    // ===== SQS: enfileirar jobs de WhatsApp =====
+    let queueResult: { enqueued: boolean; success: number; failed: number } = {
+      enqueued: false,
+      success: 0,
+      failed: 0,
+    }
+
+    if (notifyViaWhatsapp) {
+      const queueUrl = process.env.SQS_WHATSAPP_QUEUE_URL
+      if (!queueUrl) {
+        console.error(
+          `[SQS] SQS_WHATSAPP_QUEUE_URL não configurada. announcementId=${result.id}`
+        )
+      } else {
+        const jobs: WhatsappJob[] = recipientUserIds.map((recipientUserId) => ({
+          version: 1,
+          type: "WHATSAPP_ANNOUNCEMENT",
+          announcementId: result.id,
+          schoolId: currentUser.schoolId,
+          schoolName: school?.name ?? null,
+          createdById: currentUser.id,
+          recipientUserId,
+          recipientPhone: recipientPhoneMap.get(recipientUserId) ?? null,
+          audienceType,
+          classId: audienceType === "CLASS" ? classId : null,
+          studentId: audienceType === "STUDENT" ? studentId : null,
+          category,
+          title: result.title,
+          content: result.content,
+          allowReplies: Boolean(allowReplies),
+          notifyViaWhatsapp: true as const,
+          createdAt: new Date().toISOString(),
+        }))
+
+        try {
+          const batchResult = await sendWhatsappJobsBatch(queueUrl, jobs)
+          queueResult = {
+            enqueued: true,
+            success: batchResult.success,
+            failed: batchResult.failed,
+          }
+          console.log(
+            `[SQS] Enqueued ${batchResult.success}/${batchResult.total} jobs for announcementId=${result.id}`
+          )
+        } catch (err) {
+          console.error(
+            `[SQS] Falha ao publicar jobs no SQS. announcementId=${result.id}`,
+            err
+          )
+          queueResult = {
+            enqueued: false,
+            success: 0,
+            failed: recipientUserIds.length,
+          }
+        }
+      }
+    }
+
     // ===== Response =====
     const providers: string[] = ["PLATFORM"]
     if (notifyViaWhatsapp) providers.push("WHATSAPP")
@@ -291,7 +363,15 @@ export async function POST(request: NextRequest) {
           providers,
           platform: { count: recipientUserIds.length, status: "SENT" },
           ...(notifyViaWhatsapp
-            ? { whatsapp: { count: recipientUserIds.length, status: "PENDING" } }
+            ? {
+              whatsapp: {
+                count: recipientUserIds.length,
+                status: "PENDING",
+                queueEnqueued: queueResult.enqueued,
+                enqueuedCount: queueResult.success,
+                failedCount: queueResult.failed,
+              },
+            }
             : {}),
         },
       },
