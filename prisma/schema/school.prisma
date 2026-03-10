@@ -26,6 +26,7 @@ model School {
   teachers         Teacher[]
   classes          Class[]
   subjects         Subject[]
+  classTeachers    ClassTeacher[]
   grades           Grade[]
   attendances      Attendance[]
   activities       Activity[]
