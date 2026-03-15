@@ -115,7 +115,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
     }
 
-    const body = await request.json()
+    const raw = await request.json()
+
+    // Transforma payload flat do frontend para o formato nested do schema
+    const body = {
+      name: raw.studentName ?? raw.name,
+      email: raw.studentEmail ?? raw.email,
+      phone: raw.studentPhone ?? raw.phone,
+      registrationId: raw.registrationId,
+      dateOfBirth: raw.dateOfBirth,
+      cpf: raw.cpf,
+      classId: raw.classId,
+      healthInfo: raw.healthInfo,
+      address: raw.address,
+      city: raw.city,
+      state: raw.state,
+      zipCode: raw.zipCode,
+      guardian1: raw.guardian1 ?? {
+        name: raw.parent1Name,
+        email: raw.parent1Email,
+        phone: raw.parent1Phone,
+        kinship: raw.parent1Kinship,
+        cpf: raw.parent1Cpf,
+      },
+      guardian2: raw.guardian2 ?? (raw.parent2Name && raw.parent2Email
+        ? {
+          name: raw.parent2Name,
+          email: raw.parent2Email,
+          phone: raw.parent2Phone,
+          kinship: raw.parent2Kinship,
+          cpf: raw.parent2Cpf,
+        }
+        : undefined),
+    }
 
     // Valida dados com schema
     const validationResult = studentFormSchema.safeParse(body)
@@ -219,7 +251,7 @@ export async function POST(request: NextRequest) {
           userId: studentUser.id,
           schoolId: currentUser.schoolId,
           registrationId: data.registrationId,
-          dateOfBirth: new Date(data.dateOfBirth),
+          dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : new Date(),
           cpf: data.cpf || null,
           address: data.address || null,
           city: data.city || null,

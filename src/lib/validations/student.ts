@@ -23,12 +23,14 @@ export const studentFormSchema = z.object({
   phone: z.string().optional(),
   registrationId: z.string().min(1, "Matrícula é obrigatória"),
   dateOfBirth: z.string()
-    .min(1, "Data de nascimento é obrigatória")
+    .optional()
     .refine((date) => {
+      if (!date) return true
       const parsedDate = new Date(date)
       return !isNaN(parsedDate.getTime())
     }, "Data de nascimento inválida")
     .refine((date) => {
+      if (!date) return true
       const parsedDate = new Date(date)
       const today = new Date()
       const minDate = new Date(1900, 0, 1)
@@ -54,3 +56,33 @@ export const studentFormSchema = z.object({
 })
 
 export type StudentFormValues = z.infer<typeof studentFormSchema>
+
+// ─── Update schema (edit mode) ─────────────────────────
+// Same shape but dateOfBirth is optional for partial updates
+const updateParentSchema = z.object({
+  id: z.string().optional(), // existing parent ID
+  name: z.string().min(3, "Nome do responsável é obrigatório"),
+  email: z.string().email("Email inválido"),
+  phone: z.string().min(1, "Telefone é obrigatório"),
+  cpf: z.string().optional(),
+  kinship: z.string().min(1, "Parentesco é obrigatório"),
+})
+
+export const studentUpdateSchema = z.object({
+  name: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
+  email: z.string().email("Email inválido"),
+  phone: z.string().optional(),
+  registrationId: z.string().min(1, "Matrícula é obrigatória"),
+  dateOfBirth: z.string().optional(),
+  cpf: z.string().optional(),
+  healthInfo: z.string().optional(),
+  observations: z.string().optional(),
+  classId: z.string().nullable().optional(),
+  status: z.enum(["ACTIVE", "INACTIVE", "TRANSFERRED", "GRADUATED"]).optional(),
+
+  // Parents
+  guardian1: updateParentSchema,
+  guardian2: updateParentSchema.optional().nullable(),
+})
+
+export type StudentUpdateValues = z.infer<typeof studentUpdateSchema>
