@@ -116,6 +116,7 @@ export default function NewCommunicationModal({
   onSendAnnouncement,
   onCreateConversation,
 }: NewCommunicationModalProps) {
+  console.log('students', students)
   // Intent selector
   const [intent, setIntent] = useState<ModalIntent>("comunicado")
 

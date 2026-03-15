@@ -9,72 +9,9 @@ import { TeacherStats } from "@/components/secretary/teachers/TeacherStats"
 import { TeacherFilters } from "@/components/secretary/teachers/TeacherFilters"
 import { TeacherTable, type TeacherRow, type TeacherSortField, type SortDirection } from "@/components/secretary/teachers/TeacherTable"
 import { TeacherEmptyState } from "@/components/secretary/teachers/TeacherEmptyState"
+import { toast } from "sonner"
 
 const PAGE_SIZE = 15
-
-// ─── Mock data (will be replaced by API call) ───────────
-const MOCK_TEACHERS: TeacherRow[] = [
-  {
-    id: "t1",
-    name: "Maria Silva de Oliveira",
-    email: "maria.silva@escola.com",
-    phone: "11988887777",
-    classes: ["1ºA", "2ºA"],
-    subjects: ["Matemática", "Geometria"],
-    status: "ACTIVE",
-    isActive: true,
-  },
-  {
-    id: "t2",
-    name: "João Carlos Santos",
-    email: "joao.santos@escola.com",
-    phone: "11977776666",
-    classes: ["1ºA", "1ºB", "2ºA"],
-    subjects: ["Português", "Redação"],
-    status: "ACTIVE",
-    isActive: true,
-  },
-  {
-    id: "t3",
-    name: "Ana Paula Ferreira",
-    email: "ana.ferreira@escola.com",
-    phone: "11966665555",
-    classes: ["3ºA"],
-    subjects: ["Educação Física"],
-    status: "ON_LEAVE",
-    isActive: true,
-  },
-  {
-    id: "t4",
-    name: "Roberto Lima Souza",
-    email: "roberto.souza@escola.com",
-    phone: "11955554444",
-    classes: ["2ºA", "3ºA"],
-    subjects: ["Ciências", "Biologia"],
-    status: "ACTIVE",
-    isActive: true,
-  },
-  {
-    id: "t5",
-    name: "Fernanda Costa Mendes",
-    email: "fernanda.mendes@escola.com",
-    phone: null,
-    classes: [],
-    subjects: ["História"],
-    status: "INACTIVE",
-    isActive: false,
-  },
-  {
-    id: "t6",
-    name: "Carlos Eduardo Pereira",
-    email: "carlos.pereira@escola.com",
-    phone: "11933332222",
-    classes: ["1ºA", "1ºB"],
-    subjects: ["Inglês"],
-    status: "ACTIVE",
-    isActive: true,
-  },
-]
 
 export default function TeachersPage() {
   const router = useRouter()
@@ -95,13 +32,18 @@ export default function TeachersPage() {
   const fetchTeachers = async () => {
     try {
       setIsLoading(true)
-      // TODO: Replace with real API call
-      // const response = await fetch("/api/teachers")
-      // if (response.ok) { const data = await response.json(); setTeachers(data) }
-      await new Promise((r) => setTimeout(r, 400))
-      setTeachers(MOCK_TEACHERS)
+      const response = await fetch("/api/teachers")
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error || "Erro ao buscar professores")
+      }
+      const data: TeacherRow[] = await response.json()
+      setTeachers(data)
     } catch (error) {
       console.error("Error fetching teachers:", error)
+      toast.error(
+        error instanceof Error ? error.message : "Erro ao buscar professores"
+      )
     } finally {
       setIsLoading(false)
     }

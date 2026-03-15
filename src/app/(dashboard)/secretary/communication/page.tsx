@@ -130,6 +130,7 @@ export default function CommunicationPage() {
     setIsLoadingRecipients(true)
     try {
       const response = await fetch('/api/chat/recipients')
+      console.log('response', response)
       if (!response.ok) {
         throw new Error('Erro ao buscar destinatários')
       }

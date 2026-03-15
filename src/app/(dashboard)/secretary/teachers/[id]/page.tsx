@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,7 +13,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { maskPhone, maskCPF } from "@/lib/utils/masks"
 import {
@@ -26,12 +35,47 @@ interface Option {
   name: string
 }
 
-export default function NovoProfessorPage() {
+interface TeacherAssignment {
+  id: string
+  classId: string
+  className: string
+  subjectId: string | null
+  subjectName: string | null
+  role: string
+}
+
+interface TeacherDetail {
+  id: string
+  userId: string | null
+  name: string
+  email: string
+  phone: string | null
+  registrationId: string
+  cpf: string | null
+  dateOfBirth: string | null
+  specialization: string | null
+  internalNotes: string | null
+  hireDate: string
+  status: string
+  isActive: boolean
+  assignments: TeacherAssignment[]
+  createdAt: string
+  updatedAt: string
+}
+
+export default function EditTeacherPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = use(params)
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [classes, setClasses] = useState<Option[]>([])
   const [subjects, setSubjects] = useState<Option[]>([])
   const [assignments, setAssignments] = useState<ClassTeacherAssignment[]>([])
+  const [originalData, setOriginalData] = useState<TeacherDetail | null>(null)
 
   // Form state
   const [form, setForm] = useState({
@@ -42,13 +86,56 @@ export default function NovoProfessorPage() {
     dateOfBirth: "",
     registrationId: "",
     specialization: "",
+    status: "ACTIVE",
     observations: "",
     internalNotes: "",
   })
 
   useEffect(() => {
-    fetchOptions()
-  }, [])
+    Promise.all([fetchTeacher(), fetchOptions()])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchTeacher = async () => {
+    try {
+      setIsLoading(true)
+      const res = await fetch(`/api/teachers/${id}`)
+      if (!res.ok) {
+        toast.error("Professor não encontrado")
+        router.push("/secretary/teachers")
+        return
+      }
+      const data: TeacherDetail = await res.json()
+      setOriginalData(data)
+
+      setForm({
+        name: data.name,
+        email: data.email,
+        phone: data.phone ? maskPhone(data.phone) : "",
+        cpf: data.cpf ? maskCPF(data.cpf) : "",
+        dateOfBirth: data.dateOfBirth ?? "",
+        registrationId: data.registrationId,
+        specialization: data.specialization ?? "",
+        status: data.status,
+        observations: "",
+        internalNotes: data.internalNotes ?? "",
+      })
+
+      // Map server assignments to component format
+      setAssignments(
+        data.assignments.map((a) => ({
+          id: a.id,
+          classId: a.classId,
+          subjectId: a.subjectId ?? "",
+          role: a.role as "MAIN" | "SUBJECT" | "ASSISTANT",
+        }))
+      )
+    } catch (error) {
+      console.error("Error fetching teacher:", error)
+      toast.error("Erro ao carregar professor")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const fetchOptions = async () => {
     try {
@@ -58,13 +145,23 @@ export default function NovoProfessorPage() {
       ])
 
       if (classesRes.ok) {
-        const classesData = await classesRes.json()
-        setClasses(classesData.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })))
+        const data = await classesRes.json()
+        setClasses(
+          data.map((c: { id: string; name: string }) => ({
+            id: c.id,
+            name: c.name,
+          }))
+        )
       }
 
       if (subjectsRes.ok) {
-        const subjectsData = await subjectsRes.json()
-        setSubjects(subjectsData.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })))
+        const data = await subjectsRes.json()
+        setSubjects(
+          data.map((s: { id: string; name: string }) => ({
+            id: s.id,
+            name: s.name,
+          }))
+        )
       }
     } catch (error) {
       console.error("Error fetching options:", error)
@@ -87,8 +184,8 @@ export default function NovoProfessorPage() {
     e.preventDefault()
 
     // Basic validation
-    if (!form.name || !form.email || !form.phone) {
-      toast.error("Preencha os campos obrigatórios do professor.")
+    if (!form.name || !form.email) {
+      toast.error("Preencha os campos obrigatórios.")
       return
     }
 
@@ -96,7 +193,16 @@ export default function NovoProfessorPage() {
       setIsSubmitting(true)
 
       const payload = {
-        ...form,
+        name: form.name,
+        email: form.email,
+        phone: form.phone || undefined,
+        cpf: form.cpf || undefined,
+        dateOfBirth: form.dateOfBirth || undefined,
+        registrationId: form.registrationId || undefined,
+        specialization: form.specialization || undefined,
+        status: form.status,
+        observations: form.observations || undefined,
+        internalNotes: form.internalNotes || undefined,
         assignments: assignments.map((a) => ({
           classId: a.classId,
           subjectId: a.subjectId || null,
@@ -104,26 +210,42 @@ export default function NovoProfessorPage() {
         })),
       }
 
-      const res = await fetch("/api/teachers", {
-        method: "POST",
+      const res = await fetch(`/api/teachers/${id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || "Erro ao cadastrar professor")
+        throw new Error(err.error || "Erro ao atualizar professor")
       }
 
-      toast.success("Professor cadastrado com sucesso!")
+      toast.success("Professor atualizado com sucesso!")
       router.push("/secretary/teachers")
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Erro ao cadastrar professor"
+        error instanceof Error ? error.message : "Erro ao atualizar professor"
       )
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // ── Loading skeleton ────────────────────────────────
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div>
+          <Skeleton className="h-8 w-24 mb-4" />
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="mt-2 h-4 w-96" />
+        </div>
+        <Skeleton className="h-[340px] w-full rounded-lg" />
+        <Skeleton className="h-[200px] w-full rounded-lg" />
+        <Skeleton className="h-[180px] w-full rounded-lg" />
+      </div>
+    )
   }
 
   return (
@@ -139,11 +261,14 @@ export default function NovoProfessorPage() {
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           Voltar para professores
         </Button>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Cadastrar professor
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Editar professor
+          </h1>
+          {originalData && getStatusBadge(originalData.status)}
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Preencha as informações do professor e associe suas turmas e disciplinas.
+          Atualize as informações do professor e seus vínculos com turmas.
           Campos com <span className="text-destructive">*</span> são
           obrigatórios.
         </p>
@@ -190,10 +315,7 @@ export default function NovoProfessorPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">
-                  WhatsApp / Telefone{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
+                <Label htmlFor="phone">WhatsApp / Telefone</Label>
                 <Input
                   id="phone"
                   placeholder="(00) 00000-0000"
@@ -248,6 +370,25 @@ export default function NovoProfessorPage() {
                   disabled={isSubmitting}
                 />
               </div>
+
+              {/* Row 5: Status */}
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => update("status", v)}
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger id="status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Ativo</SelectItem>
+                    <SelectItem value="ON_LEAVE">Afastado</SelectItem>
+                    <SelectItem value="INACTIVE">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -257,7 +398,7 @@ export default function NovoProfessorPage() {
           <CardHeader>
             <CardTitle className="text-lg">Vínculos com turmas</CardTitle>
             <CardDescription>
-              Associe o professor às turmas e disciplinas que ele leciona. Você pode deixar esta seção vazia e vincular depois.
+              Turmas e disciplinas que o professor leciona.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -314,24 +455,69 @@ export default function NovoProfessorPage() {
 
       {/* ─── Sticky footer ──────────────────────────── */}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex max-w-5xl items-center justify-end gap-3 px-6 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/secretary/teachers")}
-            disabled={isSubmitting}
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            onClick={handleSubmit}
-          >
-            {isSubmitting ? "Cadastrando..." : "Cadastrar professor"}
-          </Button>
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+          <p className="hidden text-xs text-muted-foreground sm:block">
+            {originalData
+              ? `Última atualização: ${new Date(originalData.updatedAt).toLocaleDateString("pt-BR")}`
+              : ""}
+          </p>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/secretary/teachers")}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+            <Button disabled={isSubmitting} onClick={handleSubmit}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                "Salvar alterações"
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
   )
+}
+
+// ─── Helpers ────────────────────────────────────────────
+function getStatusBadge(status: string) {
+  switch (status) {
+    case "ACTIVE":
+      return (
+        <Badge
+          variant="secondary"
+          className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+        >
+          Ativo
+        </Badge>
+      )
+    case "ON_LEAVE":
+      return (
+        <Badge
+          variant="secondary"
+          className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+        >
+          Afastado
+        </Badge>
+      )
+    case "INACTIVE":
+      return (
+        <Badge
+          variant="secondary"
+          className="bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+        >
+          Inativo
+        </Badge>
+      )
+    default:
+      return <Badge variant="outline">{status}</Badge>
+  }
 }
