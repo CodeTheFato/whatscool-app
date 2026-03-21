@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -18,22 +18,15 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Bell, User, Settings, LogOut, School } from "lucide-react"
 import { toast } from "sonner"
+import { dbRoleToAppRole, roleLabels } from "@/config/sidebar-menus"
 
 export default function Header() {
   const router = useRouter()
-  const pathname = usePathname()
   const { data: session, status } = useSession()
 
   const isLoading = status === "loading"
-
-  function getRoleFromPath(path: string) {
-    if (path.startsWith("/admin")) return "Administrador"
-    if (path.startsWith("/secretary")) return "Secretaria"
-    if (path.startsWith("/teacher")) return "Professor"
-    if (path.startsWith("/parents")) return "Responsável"
-    if (path.startsWith("/student")) return "Aluno"
-    return "Usuário"
-  }
+  const appRole = session?.user?.role ? dbRoleToAppRole[session.user.role] : undefined
+  const roleLabel = appRole ? roleLabels[appRole] : "Usuário"
 
   const isAdmin = session?.user?.role === "ADMIN"
 
@@ -62,12 +55,12 @@ export default function Header() {
             <School className="h-5 w-5 text-primary" />
             <div className="hidden md:block">
               <p className="text-sm font-semibold">{session.user.schoolName}</p>
-              <p className="text-xs text-muted-foreground">{getRoleFromPath(pathname)}</p>
+              <p className="text-xs text-muted-foreground">{roleLabel}</p>
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold">{getRoleFromPath(pathname)}</p>
+            <p className="text-sm font-semibold">{roleLabel}</p>
           </div>
         )}
 
@@ -117,7 +110,7 @@ export default function Header() {
                     {session?.user?.email}
                   </p>
                   <Badge variant="secondary" className="w-fit mt-1">
-                    {getRoleFromPath(pathname)}
+                    {roleLabel}
                   </Badge>
                 </div>
               </DropdownMenuLabel>

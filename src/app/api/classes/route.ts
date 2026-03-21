@@ -28,11 +28,17 @@ export async function GET(request: NextRequest) {
         schoolId: currentUser.schoolId,
       },
       include: {
-        teacher: {
+        classTeachers: {
+          where: { role: "MAIN" },
+          take: 1,
           include: {
-            user: {
-              select: {
-                name: true,
+            teacher: {
+              include: {
+                user: {
+                  select: {
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -51,22 +57,25 @@ export async function GET(request: NextRequest) {
     })
 
     // Formata resposta
-    const formattedClasses = classes.map((cls) => ({
-      id: cls.id,
-      name: cls.name,
-      grade: cls.grade,
-      shift: cls.shift,
-      academicYear: cls.academicYear,
-      maxStudents: cls.maxStudents,
-      currentStudents: cls._count.students,
-      teacher: cls.teacher
-        ? {
-          id: cls.teacher.id,
-          name: cls.teacher.user.name,
-        }
-        : null,
-      createdAt: cls.createdAt,
-    }))
+    const formattedClasses = classes.map((cls) => {
+      const mainTeacher = cls.classTeachers[0]?.teacher ?? null
+      return {
+        id: cls.id,
+        name: cls.name,
+        grade: cls.grade,
+        shift: cls.shift,
+        academicYear: cls.academicYear,
+        maxStudents: cls.maxStudents,
+        currentStudents: cls._count.students,
+        teacher: mainTeacher
+          ? {
+            id: mainTeacher.id,
+            name: mainTeacher.user?.name ?? "Professor sem conta",
+          }
+          : null,
+        createdAt: cls.createdAt,
+      }
+    })
 
     return NextResponse.json(formattedClasses)
   } catch (error) {
@@ -127,20 +136,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verifica se professor existe (se fornecido)
-    if (data.teacherId) {
-      const teacher = await prisma.teacher.findFirst({
-        where: {
-          id: data.teacherId,
-          schoolId: currentUser.schoolId,
-        },
-      })
-
-      if (!teacher) {
-        return NextResponse.json({ error: "Professor não encontrado" }, { status: 404 })
-      }
-    }
-
     // Cria turma
     const newClass = await prisma.class.create({
       data: {
@@ -150,18 +145,6 @@ export async function POST(request: NextRequest) {
         shift: data.shift,
         academicYear: data.academicYear,
         maxStudents: data.maxStudents,
-        teacherId: data.teacherId || null,
-      },
-      include: {
-        teacher: {
-          include: {
-            user: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
       },
     })
 
@@ -173,12 +156,7 @@ export async function POST(request: NextRequest) {
         shift: newClass.shift,
         academicYear: newClass.academicYear,
         maxStudents: newClass.maxStudents,
-        teacher: newClass.teacher
-          ? {
-            id: newClass.teacher.id,
-            name: newClass.teacher.user.name,
-          }
-          : null,
+        teacher: null,
         message: "Turma cadastrada com sucesso!",
       },
       { status: 201 }

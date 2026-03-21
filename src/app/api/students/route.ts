@@ -5,93 +5,6 @@ import { prisma } from "@/lib/prisma"
 import { randomBytes } from "crypto"
 import { studentFormSchema } from "@/lib/validations/student"
 
-// GET /api/students - Lista alunos da escola
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
-    }
-
-    // Busca usuário logado para pegar schoolId
-    const currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    })
-
-    if (!currentUser) {
-      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
-    }
-
-    // Busca todos os alunos da mesma escola
-    const students = await prisma.student.findMany({
-      where: {
-        schoolId: currentUser.schoolId,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            isActive: true,
-          },
-        },
-        class: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        parents: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    })
-
-    // Formata resposta
-    const formattedStudents = students.map((student) => ({
-      id: student.id,
-      name: student.user.name,
-      email: student.user.email,
-      phone: student.user.phone,
-      registrationId: student.registrationId,
-      class: student.class?.name || null,
-      parents: student.parents.map((parent) => ({
-        id: parent.id,
-        name: parent.user.name,
-        email: parent.user.email,
-        phone: parent.user.phone,
-        kinship: parent.kinship,
-        isActive: parent.user.isActive,
-      })),
-      status: student.status,
-      isActive: student.user.isActive,
-      dateOfBirth: student.dateOfBirth,
-      createdAt: student.createdAt,
-    }))
-
-    return NextResponse.json(formattedStudents)
-  } catch (error) {
-    console.error("Error fetching students:", error)
-    return NextResponse.json({ error: "Erro ao buscar alunos" }, { status: 500 })
-  }
-}
-
 // POST /api/students - Cria novo aluno
 export async function POST(request: NextRequest) {
   try {
@@ -115,7 +28,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
     }
 
-    const body = await request.json()
+    const raw = await request.json()
+
+    // Transforma payload flat do frontend para o formato nested do schema
+    const body = {
+      name: raw.studentName ?? raw.name,
+      email: raw.studentEmail ?? raw.email,
+      phone: raw.studentPhone ?? raw.phone,
+      registrationId: raw.registrationId,
+      dateOfBirth: raw.dateOfBirth,
+      cpf: raw.cpf,
+      classId: raw.classId,
+      healthInfo: raw.healthInfo,
+      address: raw.address,
+      city: raw.city,
+      state: raw.state,
+      zipCode: raw.zipCode,
+      guardian1: raw.guardian1 ?? {
+        name: raw.parent1Name,
+        email: raw.parent1Email,
+        phone: raw.parent1Phone,
+        kinship: raw.parent1Kinship,
+        cpf: raw.parent1Cpf,
+      },
+      guardian2: raw.guardian2 ?? (raw.parent2Name && raw.parent2Email
+        ? {
+          name: raw.parent2Name,
+          email: raw.parent2Email,
+          phone: raw.parent2Phone,
+          kinship: raw.parent2Kinship,
+          cpf: raw.parent2Cpf,
+        }
+        : undefined),
+    }
 
     // Valida dados com schema
     const validationResult = studentFormSchema.safeParse(body)
@@ -219,7 +164,7 @@ export async function POST(request: NextRequest) {
           userId: studentUser.id,
           schoolId: currentUser.schoolId,
           registrationId: data.registrationId,
-          dateOfBirth: new Date(data.dateOfBirth),
+          dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : new Date(),
           cpf: data.cpf || null,
           address: data.address || null,
           city: data.city || null,
