@@ -8,8 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { School, Mail, Lock, LogIn, CheckCircle2, ShieldCheck, Zap } from "lucide-react"
+import { Mail, Lock, LogIn, CheckCircle2, ShieldCheck, Zap } from "lucide-react"
 import { toast } from "sonner"
+import { AuthBrandingPanel } from "@/components/auth/AuthBrandingPanel"
+
+const BRANDING_FEATURES = [
+  { icon: Zap, title: "Acesso Instantâneo", description: "Entre em segundos" },
+  { icon: ShieldCheck, title: "100% Seguro", description: "Dados criptografados" },
+  { icon: CheckCircle2, title: "Suporte 24/7", description: "Sempre disponível" },
+]
 
 export default function LoginPage() {
   const router = useRouter()
@@ -34,7 +41,6 @@ export default function LoginPage() {
         return
       }
 
-      // Buscar a session para obter o role do usuário
       const response = await fetch("/api/auth/session")
       const session = await response.json()
 
@@ -60,53 +66,12 @@ export default function LoginPage() {
 
   return (
     <div className="grid md:grid-cols-2 gap-0 max-w-5xl mx-auto overflow-hidden rounded-2xl shadow-2xl bg-white">
-      {/* Left Side - Illustration/Branding */}
-      <div className="hidden md:flex flex-col justify-between p-12 bg-gradient-to-br from-blue-600 via-blue-700 to-purple-800 text-white">
-        <div>
-          <div className="inline-flex items-center gap-2 mb-8">
-            <School className="w-8 h-8" />
-            <span className="text-2xl font-bold">Whatscool</span>
-          </div>
-          <h2 className="text-4xl font-bold mb-4 leading-tight">
-            Gestão Escolar Moderna
-          </h2>
-          <p className="text-blue-100 text-lg leading-relaxed">
-            Conecte toda a comunidade escolar em uma única plataforma. Simples, segura e eficiente.
-          </p>
-        </div>
+      <AuthBrandingPanel
+        title="Gestão Escolar Moderna"
+        subtitle="Conecte toda a comunidade escolar em uma única plataforma. Simples, segura e eficiente."
+        features={BRANDING_FEATURES}
+      />
 
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <Zap className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-semibold">Acesso Instantâneo</p>
-              <p className="text-sm text-blue-100">Entre em segundos</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-semibold">100% Seguro</p>
-              <p className="text-sm text-blue-100">Dados criptografados</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-semibold">Suporte 24/7</p>
-              <p className="text-sm text-blue-100">Sempre disponível</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Right Side - Form */}
       <div className="p-8 md:p-12 flex flex-col justify-center">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">Bem-vindo de volta!</h1>

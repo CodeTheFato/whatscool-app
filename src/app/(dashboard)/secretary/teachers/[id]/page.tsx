@@ -2,12 +2,12 @@
 
 import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { maskPhone, maskCPF } from "@/lib/utils/masks"
+import { getTeacherStatusBadge } from "@/lib/utils/status-badges"
+import { FormPageHeader } from "@/components/ui/form-page-header"
+import { StickyFooter } from "@/components/ui/sticky-footer"
 import { TeacherForm } from "@/components/teachers"
 import type { TeacherFormState, ClassTeacherAssignment } from "@/components/teachers"
 
@@ -42,31 +42,6 @@ interface TeacherDetail {
   assignments: TeacherAssignment[]
   createdAt: string
   updatedAt: string
-}
-
-function getStatusBadge(status: string) {
-  switch (status) {
-    case "ACTIVE":
-      return (
-        <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
-          Ativo
-        </Badge>
-      )
-    case "ON_LEAVE":
-      return (
-        <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-          Afastado
-        </Badge>
-      )
-    case "INACTIVE":
-      return (
-        <Badge variant="secondary" className="bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          Inativo
-        </Badge>
-      )
-    default:
-      return <Badge variant="outline">{status}</Badge>
-  }
 }
 
 export default function EditTeacherPage({
@@ -242,27 +217,13 @@ export default function EditTeacherPage({
 
   return (
     <div className="mx-auto max-w-5xl pb-24">
-      <div className="mb-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="-ml-2 mb-4 text-muted-foreground"
-          onClick={() => router.push("/secretary/teachers")}
-        >
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Voltar para professores
-        </Button>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Editar professor
-          </h1>
-          {originalData && getStatusBadge(originalData.status)}
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Atualize as informações do professor e seus vínculos com turmas.
-          Campos com <span className="text-destructive">*</span> são obrigatórios.
-        </p>
-      </div>
+      <FormPageHeader
+        backPath="/secretary/teachers"
+        backLabel="Voltar para professores"
+        title="Editar professor"
+        description={<>Atualize as informações do professor e seus vínculos com turmas. Campos com <span className="text-destructive">*</span> são obrigatórios.</>}
+        statusBadge={originalData ? getTeacherStatusBadge(originalData.status) : undefined}
+      />
 
       <form onSubmit={handleSubmit}>
         <TeacherForm
@@ -279,35 +240,20 @@ export default function EditTeacherPage({
         />
       </form>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+      <StickyFooter
+        cancelPath="/secretary/teachers"
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        submitLabel="Salvar alterações"
+        submittingLabel="Salvando..."
+        extraLeft={
           <p className="hidden text-xs text-muted-foreground sm:block">
             {originalData
               ? `Última atualização: ${new Date(originalData.updatedAt).toLocaleDateString("pt-BR")}`
               : ""}
           </p>
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/secretary/teachers")}
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </Button>
-            <Button disabled={isSubmitting} onClick={handleSubmit}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                "Salvar alterações"
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
+        }
+      />
     </div>
   )
 }

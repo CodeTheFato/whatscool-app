@@ -14,8 +14,10 @@ import {
   Plus,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
 } from "lucide-react"
+import { DashboardStatsGrid, ActivityFeed } from "@/components/dashboard"
+import type { StatCard, ActivityItem } from "@/components/dashboard"
 
 interface School {
   id: string
@@ -62,28 +64,17 @@ export default function AdminDashboard() {
     classes: schools.reduce((acc, s) => acc + (s._count?.classes || 0), 0),
   }
 
-  const recentActivities = [
-    {
-      type: "success",
-      icon: CheckCircle2,
-      title: "Nova escola cadastrada",
-      message: "Instituto Educacional Santos - RJ",
-      time: "há 2 horas"
-    },
-    {
-      type: "info",
-      icon: Clock,
-      title: "Atualização de dados",
-      message: "Colégio Bosque Azul atualizou informações",
-      time: "há 5 horas"
-    },
-    {
-      type: "warning",
-      icon: AlertCircle,
-      title: "Atenção necessária",
-      message: "Escola Villa Lobos com pagamento pendente",
-      time: "há 1 dia"
-    },
+  const stats: StatCard[] = [
+    { title: "Escolas", value: totalStats.schools, description: "Total de instituições", icon: Building2, color: "text-blue-600 bg-blue-100" },
+    { title: "Alunos", value: totalStats.students, description: "Total na plataforma", icon: GraduationCap, color: "text-green-600 bg-green-100" },
+    { title: "Professores", value: totalStats.teachers, description: "Corpo docente ativo", icon: Users, color: "text-purple-600 bg-purple-100" },
+    { title: "Turmas", value: totalStats.classes, description: "Turmas ativas", icon: TrendingUp, color: "text-orange-600 bg-orange-100" },
+  ]
+
+  const recentActivities: ActivityItem[] = [
+    { type: "success", icon: CheckCircle2, title: "Nova escola cadastrada", message: "Instituto Educacional Santos - RJ", time: "há 2 horas" },
+    { type: "info", icon: Clock, title: "Atualização de dados", message: "Colégio Bosque Azul atualizou informações", time: "há 5 horas" },
+    { type: "warning", icon: AlertCircle, title: "Atenção necessária", message: "Escola Villa Lobos com pagamento pendente", time: "há 1 dia" },
   ]
 
   return (
@@ -103,84 +94,13 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Escolas
-            </CardTitle>
-            <div className="p-2 rounded-full bg-blue-100 text-blue-600">
-              <Building2 className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalStats.schools}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Total de instituições
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Alunos
-            </CardTitle>
-            <div className="p-2 rounded-full bg-green-100 text-green-600">
-              <GraduationCap className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalStats.students}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Total na plataforma
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Professores
-            </CardTitle>
-            <div className="p-2 rounded-full bg-purple-100 text-purple-600">
-              <Users className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalStats.teachers}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Corpo docente ativo
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Turmas
-            </CardTitle>
-            <div className="p-2 rounded-full bg-orange-100 text-orange-600">
-              <TrendingUp className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalStats.classes}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Turmas ativas
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardStatsGrid stats={stats} />
 
       {/* Schools List */}
       <Card>
         <CardHeader>
           <CardTitle>Escolas Gerenciadas</CardTitle>
-          <CardDescription>
-            Todas as instituições cadastradas na plataforma
-          </CardDescription>
+          <CardDescription>Todas as instituições cadastradas na plataforma</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -244,43 +164,11 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Recent Activities */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Atividades Recentes</CardTitle>
-          <CardDescription>
-            Últimas movimentações na plataforma
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentActivities.map((activity, index) => {
-              const Icon = activity.icon
-              return (
-                <div key={index} className="flex items-start gap-4 pb-4 border-b last:border-0">
-                  <div className={`p-2 rounded-full ${activity.type === "success" ? "bg-green-100 text-green-600" :
-                    activity.type === "warning" ? "bg-yellow-100 text-yellow-600" :
-                      "bg-blue-100 text-blue-600"
-                    }`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {activity.title}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {activity.message}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {activity.time}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <ActivityFeed
+        title="Atividades Recentes"
+        description="Últimas movimentações na plataforma"
+        activities={recentActivities}
+      />
     </main>
   )
 }
