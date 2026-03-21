@@ -1,30 +1,30 @@
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
-import { getSchoolStudents } from "@/lib/queries/students"
+import { getTeacherStudents } from "@/lib/queries/students"
 import { StudentsPage } from "@/components/students"
 import type { StudentsConfig } from "@/components/students"
 
 const config: StudentsConfig = {
-  role: "secretary",
-  pageTitle: "Alunos",
-  pageDescription: "Gerencie os alunos e responsáveis da escola",
-  basePath: "/secretary/students",
-  canCreate: true,
-  canImport: true,
-  canSelect: true,
-  canEdit: true,
+  role: "teacher",
+  pageTitle: "Meus Alunos",
+  pageDescription: "Visualize os alunos das turmas em que você leciona",
+  basePath: "/teacher/students",
+  canCreate: false,
+  canImport: false,
+  canSelect: false,
+  canEdit: false,
   showStats: true,
 }
 
-export default async function SecretaryStudentsPage() {
+export default async function TeacherStudentsPage() {
   const session = await getServerSession(authOptions)
 
   if (!session?.user?.schoolId) {
     redirect("/login")
   }
 
-  const students = await getSchoolStudents(session.user.schoolId)
+  const students = await getTeacherStudents(session.user.schoolId, session.user.id)
 
   return <StudentsPage config={config} initialStudents={students} />
 }

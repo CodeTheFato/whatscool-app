@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { getRecipients } from "@/lib/queries/recipients"
 import StaffCommunicationClient from "@/components/communication/StaffCommunicationClient"
 
-export default async function SecretaryCommunicationPage() {
+export default async function TeacherCommunicationPage() {
   const session = await getServerSession(authOptions)
 
   if (!session?.user?.schoolId) {
@@ -15,7 +15,7 @@ export default async function SecretaryCommunicationPage() {
 
   return (
     <StaffCommunicationClient
-      role="secretary"
+      role="teacher"
       initialClasses={classes}
       initialStudents={students}
     />

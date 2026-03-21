@@ -11,8 +11,6 @@ import {
   DollarSign,
   FileText,
   CheckCircle,
-  Star,
-  Calendar,
   Building2,
   MessageSquare,
   BarChart3,
@@ -35,7 +33,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { sidebarMenus, type UserRole } from "@/config/sidebar-menus"
+import { sidebarMenus, dbRoleToAppRole, roleLabels, type UserRole } from "@/config/sidebar-menus"
 
 const iconMap = {
   Home,
@@ -45,29 +43,19 @@ const iconMap = {
   DollarSign,
   FileText,
   CheckCircle,
-  Star,
-  Calendar,
   Building2,
   MessageSquare,
   BarChart3,
   Settings
 }
 
-const roleColors = {
+const roleColors: Record<string, string> = {
   admin: "bg-orange-100 text-orange-700 border-orange-200",
   secretary: "bg-blue-100 text-blue-700 border-blue-200",
   teacher: "bg-green-100 text-green-700 border-green-200",
   parents: "bg-purple-100 text-purple-700 border-purple-200",
-  student: "bg-pink-100 text-pink-700 border-pink-200",
 }
 
-const roleLabels = {
-  admin: "Administrador",
-  secretary: "Secretaria",
-  teacher: "Professor",
-  parents: "Responsável",
-  student: "Aluno",
-}
 
 export default function AppSidebar() {
   const pathname = usePathname()
@@ -76,18 +64,8 @@ export default function AppSidebar() {
   const isCollapsed = state === "collapsed"
   const isLoading = status === "loading"
 
-  // Determine user role from pathname
-  const getUserRole = (): UserRole | null => {
-    if (pathname.startsWith("/admin")) return "admin"
-    if (pathname.startsWith("/secretary")) return "secretary"
-    if (pathname.startsWith("/teacher")) return "teacher"
-    if (pathname.startsWith("/parents")) return "parents"
-    if (pathname.startsWith("/student")) return "student"
-    return null
-  }
-
-  const userRole = getUserRole()
-  const menuItems = userRole ? sidebarMenus[userRole] : []
+  const userRole = session?.user?.role ? dbRoleToAppRole[session.user.role] : undefined
+  const menuItems = userRole ? (sidebarMenus[userRole] ?? []) : []
 
   return (
     <Sidebar collapsible="icon" className="border-r transition-all duration-300 ease-in-out">
