@@ -19,8 +19,8 @@ function mapStaffConversation(conv: any): Conversation {
   const firstParent = parents[0]?.user
 
   let studentName = "Aluno"
-  if (firstParent?.parent?.students && firstParent.parent.students.length > 0) {
-    studentName = firstParent.parent.students[0].user.name
+  if (firstParent?.parent?.studentParents && firstParent.parent.studentParents.length > 0) {
+    studentName = firstParent.parent.studentParents[0].student.user.name
   }
 
   const messages: ChatMessage[] = conv.messages
@@ -53,8 +53,8 @@ function mapStaffConversationDetail(data: any): Conversation {
   const firstParent = parents[0]?.user
 
   let studentName = "Aluno"
-  if (firstParent?.parent?.students && firstParent.parent.students.length > 0) {
-    studentName = firstParent.parent.students[0].user.name
+  if (firstParent?.parent?.studentParents && firstParent.parent.studentParents.length > 0) {
+    studentName = firstParent.parent.studentParents[0].student.user.name
   }
 
   const messages: ChatMessage[] = data.messages.map((msg: any) => ({

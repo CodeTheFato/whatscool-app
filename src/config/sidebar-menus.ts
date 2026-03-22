@@ -29,7 +29,6 @@ export const sidebarMenus: Record<UserRole, MenuItem[]> = {
     { label: 'Painel', href: '/admin', icon: 'Home' },
     { label: 'Escolas', href: '/admin/schools', icon: 'Building2' },
     { label: 'Usuários', href: '/admin/users', icon: 'Users' },
-    { label: 'Financeiro', href: '/admin/financial', icon: 'DollarSign' },
   ],
   secretary: [
     { label: 'Painel', href: '/secretary', icon: 'Home' },

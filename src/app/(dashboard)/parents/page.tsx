@@ -4,26 +4,17 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
-  GraduationCap,
   Calendar,
   FileText,
-  DollarSign,
-  CheckCircle2,
   Clock,
-  AlertCircle
 } from "lucide-react"
+import { ActivityFeed } from "@/components/dashboard"
+import type { ActivityItem } from "@/components/dashboard"
 
 export default function ParentsDashboard() {
-  // Mock data
   const user = {
     name: "Ana Paula Costa",
     email: "ana@email.com",
-  }
-
-  const school = {
-    name: "Colégio Bosque Azul",
-    city: "Belo Horizonte",
-    state: "MG",
   }
 
   const children = [
@@ -47,35 +38,10 @@ export default function ParentsDashboard() {
     },
   ]
 
-  const financialStatus = {
-    currentMonth: "Fevereiro 2026",
-    status: "Em dia",
-    nextDueDate: "10/03/2026",
-    value: "R$ 850,00",
-  }
-
-  const recentNotifications = [
-    {
-      type: "info",
-      icon: FileText,
-      title: "Nova atividade disponível",
-      message: "Lucas - Matemática: Exercícios sobre frações",
-      time: "há 3 horas"
-    },
-    {
-      type: "warning",
-      icon: Clock,
-      title: "Reunião agendada",
-      message: "Reunião de pais - 2º Ano A em 15/03",
-      time: "há 1 dia"
-    },
-    {
-      type: "success",
-      icon: CheckCircle2,
-      title: "Pagamento confirmado",
-      message: "Mensalidade de janeiro paga com sucesso",
-      time: "há 2 dias"
-    },
+  const recentNotifications: ActivityItem[] = [
+    { type: "info", icon: FileText, title: "Nova atividade disponível", message: "Lucas - Matemática: Exercícios sobre frações", time: "há 3 horas" },
+    { type: "warning", icon: Clock, title: "Reunião agendada", message: "Reunião de pais - 2º Ano A em 15/03", time: "há 1 dia" },
+    { type: "success", icon: FileText, title: "Comunicado lido", message: "Reunião geral confirmada", time: "há 2 dias" },
   ]
 
   return (
@@ -86,39 +52,6 @@ export default function ParentsDashboard() {
           Acompanhe o desempenho dos seus filhos
         </p>
       </div>
-
-      {/* Financial Status Card */}
-      <Card className="border-l-4 border-l-green-500">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Situação Financeira</CardTitle>
-              <CardDescription>{financialStatus.currentMonth}</CardDescription>
-            </div>
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <CheckCircle2 className="w-3 h-3 mr-1" />
-              {financialStatus.status}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Próximo vencimento</p>
-              <p className="text-lg font-semibold">{financialStatus.nextDueDate}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">Valor</p>
-              <p className="text-lg font-semibold">{financialStatus.value}</p>
-            </div>
-            <Link href="/parents/financial">
-              <Button variant="outline" size="sm">
-                Ver Detalhes
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Children Cards */}
       <div>
@@ -131,7 +64,7 @@ export default function ParentsDashboard() {
                   <Avatar className="h-16 w-16">
                     <AvatarImage src={child.avatar} alt={child.name} />
                     <AvatarFallback className="text-lg">
-                      {child.name.split(" ").map(n => n[0]).join("")}
+                      {child.name.split(" ").map((n) => n[0]).join("")}
                     </AvatarFallback>
                   </Avatar>
                   <div>
@@ -180,43 +113,11 @@ export default function ParentsDashboard() {
         </div>
       </div>
 
-      {/* Recent Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notificações Recentes</CardTitle>
-          <CardDescription>
-            Últimas atualizações sobre seus filhos
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentNotifications.map((notification, index) => {
-              const Icon = notification.icon
-              return (
-                <div key={index} className="flex items-start gap-4 pb-4 border-b last:border-0">
-                  <div className={`p-2 rounded-full ${notification.type === "success" ? "bg-green-100 text-green-600" :
-                      notification.type === "warning" ? "bg-yellow-100 text-yellow-600" :
-                        "bg-blue-100 text-blue-600"
-                    }`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {notification.title}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {notification.message}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {notification.time}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <ActivityFeed
+        title="Notificações Recentes"
+        description="Últimas atualizações sobre seus filhos"
+        activities={recentNotifications}
+      />
     </main>
   )
 }

@@ -1,2 +1,13 @@
 export { default as StudentsPage } from "./StudentsPage"
-export type { StudentsConfig, StudentsRole, StudentRow, SortField, SortDirection } from "./types"
+export { StudentForm } from "./StudentForm"
+export { ParentFields } from "./ParentFields"
+export type {
+  StudentsConfig,
+  StudentsRole,
+  StudentRow,
+  StudentFormState,
+  StudentDetail,
+  ClassOption,
+  SortField,
+  SortDirection,
+} from "./types"

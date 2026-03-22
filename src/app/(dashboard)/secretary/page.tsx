@@ -7,80 +7,25 @@ import {
   GraduationCap,
   UserCheck,
   BookOpen,
-  ChevronRight,
-  School,
-  DollarSign,
   CheckCircle2,
   Clock,
-  AlertCircle,
-  MessageSquare
+  MessageSquare,
 } from "lucide-react"
+import { DashboardStatsGrid, ActivityFeed } from "@/components/dashboard"
+import type { StatCard, ActivityItem } from "@/components/dashboard"
 
 export default function SecretaryDashboard() {
-  // Mock data
-  const school = {
-    name: "Colégio Bosque Azul",
-    city: "Belo Horizonte",
-    state: "MG",
-  }
-
-  const stats = [
-    {
-      title: "Turmas",
-      value: 12,
-      description: "Total de turmas ativas",
-      icon: BookOpen,
-      href: "/secretary/classes",
-      color: "text-blue-600 bg-blue-100",
-    },
-    {
-      title: "Alunos",
-      value: 324,
-      description: "Matriculados este ano",
-      icon: GraduationCap,
-      href: "/secretary/students",
-      color: "text-green-600 bg-green-100",
-    },
-    {
-      title: "Responsáveis",
-      value: 520,
-      description: "Cadastrados no sistema",
-      icon: UserCheck,
-      href: "/parents",
-      color: "text-purple-600 bg-purple-100",
-    },
-    {
-      title: "Professores",
-      value: 28,
-      description: "Corpo docente ativo",
-      icon: Users,
-      href: "/secretary/teachers",
-      color: "text-orange-600 bg-orange-100",
-    },
+  const stats: StatCard[] = [
+    { title: "Turmas", value: 12, description: "Total de turmas ativas", icon: BookOpen, color: "text-blue-600 bg-blue-100", href: "/secretary/classes" },
+    { title: "Alunos", value: 324, description: "Matriculados este ano", icon: GraduationCap, color: "text-green-600 bg-green-100", href: "/secretary/students" },
+    { title: "Responsáveis", value: 520, description: "Cadastrados no sistema", icon: UserCheck, color: "text-purple-600 bg-purple-100", href: "/parents" },
+    { title: "Professores", value: 28, description: "Corpo docente ativo", icon: Users, color: "text-orange-600 bg-orange-100", href: "/secretary/teachers" },
   ]
 
-  const recentActivities = [
-    {
-      type: "success",
-      icon: CheckCircle2,
-      title: "Novo aluno matriculado",
-      message: "Maria Santos - 2º Ano A",
-      time: "há 2 horas"
-    },
-    {
-      type: "info",
-      icon: DollarSign,
-      title: "Pagamento confirmado",
-      message: "Mensalidade de Pedro Silva",
-      time: "há 5 horas"
-    },
-    {
-      type: "warning",
-      icon: MessageSquare,
-      title: "Nova comunicação",
-      message: "Reunião de pais - 3º Ano",
-      time: "há 1 dia"
-    },
+  const recentActivities: ActivityItem[] = [
+    { type: "success", icon: CheckCircle2, title: "Novo aluno matriculado", message: "Maria Santos - 2º Ano A", time: "há 2 horas" },
+    { type: "info", icon: CheckCircle2, title: "Comunicado enviado", message: "Reunião de pais confirmada", time: "há 5 horas" },
+    { type: "warning", icon: MessageSquare, title: "Nova comunicação", message: "Reunião de pais - 3º Ano", time: "há 1 dia" },
   ]
 
   const pendingAuthorizations = [
@@ -98,72 +43,15 @@ export default function SecretaryDashboard() {
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <Link key={stat.title} href={stat.href}>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {stat.title}
-                  </CardTitle>
-                  <div className={`p-2 rounded-full ${stat.color}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {stat.description}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-          )
-        })}
-      </div>
+      <DashboardStatsGrid stats={stats} />
 
       {/* Two Column Layout */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Recent Activities */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Atividades Recentes</CardTitle>
-            <CardDescription>
-              Últimas movimentações do sistema
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivities.map((activity, index) => {
-                const Icon = activity.icon
-                return (
-                  <div key={index} className="flex items-start gap-4 pb-4 border-b last:border-0">
-                    <div className={`p-2 rounded-full ${activity.type === "success" ? "bg-green-100 text-green-600" :
-                        activity.type === "warning" ? "bg-yellow-100 text-yellow-600" :
-                          "bg-blue-100 text-blue-600"
-                      }`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {activity.title}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {activity.message}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        <ActivityFeed
+          title="Atividades Recentes"
+          description="Últimas movimentações do sistema"
+          activities={recentActivities}
+        />
 
         {/* Pending Authorizations */}
         <Card>
@@ -171,9 +59,7 @@ export default function SecretaryDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Autorizações Pendentes</CardTitle>
-                <CardDescription>
-                  Solicitações aguardando aprovação
-                </CardDescription>
+                <CardDescription>Solicitações aguardando aprovação</CardDescription>
               </div>
               <Badge variant="secondary">{pendingAuthorizations.length}</Badge>
             </div>
@@ -204,9 +90,7 @@ export default function SecretaryDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Ações Rápidas</CardTitle>
-          <CardDescription>
-            Acesse as principais funcionalidades
-          </CardDescription>
+          <CardDescription>Acesse as principais funcionalidades</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -228,10 +112,10 @@ export default function SecretaryDashboard() {
                 <span className="text-xs">Gerenciar Professores</span>
               </Button>
             </Link>
-            <Link href="/secretary/financial">
+            <Link href="/secretary/communication">
               <Button variant="outline" className="w-full h-auto flex-col gap-2 py-4">
-                <DollarSign className="h-6 w-6" />
-                <span className="text-xs">Financeiro</span>
+                <MessageSquare className="h-6 w-6" />
+                <span className="text-xs">Comunicação</span>
               </Button>
             </Link>
           </div>

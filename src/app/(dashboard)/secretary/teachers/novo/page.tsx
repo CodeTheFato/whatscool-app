@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { maskPhone, maskCPF } from "@/lib/utils/masks"
+import { FormPageHeader } from "@/components/ui/form-page-header"
+import { StickyFooter } from "@/components/ui/sticky-footer"
 import { TeacherForm } from "@/components/teachers"
 import type { TeacherFormState, ClassTeacherAssignment } from "@/components/teachers"
 
@@ -115,24 +115,12 @@ export default function NovoProfessorPage() {
 
   return (
     <div className="mx-auto max-w-5xl pb-24">
-      <div className="mb-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="-ml-2 mb-4 text-muted-foreground"
-          onClick={() => router.push("/secretary/teachers")}
-        >
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Voltar para professores
-        </Button>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Cadastrar professor
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Preencha as informações do professor e associe suas turmas e disciplinas.
-          Campos com <span className="text-destructive">*</span> são obrigatórios.
-        </p>
-      </div>
+      <FormPageHeader
+        backPath="/secretary/teachers"
+        backLabel="Voltar para professores"
+        title="Cadastrar professor"
+        description={<>Preencha as informações do professor e associe suas turmas e disciplinas. Campos com <span className="text-destructive">*</span> são obrigatórios.</>}
+      />
 
       <form onSubmit={handleSubmit}>
         <TeacherForm
@@ -148,24 +136,13 @@ export default function NovoProfessorPage() {
         />
       </form>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex max-w-5xl items-center justify-end gap-3 px-6 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/secretary/teachers")}
-            disabled={isSubmitting}
-          >
-            Cancelar
-          </Button>
-          <Button
-            disabled={isSubmitting}
-            onClick={handleSubmit}
-          >
-            {isSubmitting ? "Cadastrando..." : "Cadastrar professor"}
-          </Button>
-        </div>
-      </div>
+      <StickyFooter
+        cancelPath="/secretary/teachers"
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        submitLabel="Cadastrar professor"
+        submittingLabel="Cadastrando..."
+      />
     </div>
   )
 }

@@ -4,42 +4,87 @@ import { useState } from "react"
 import { Search, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import { AddClassModal } from "@/components/classes/AddClassModal"
 import type { ClassesConfig, ClassItem } from "./types"
+
+// ─── Helpers ─────────────────────────────────────────────
+
+const SHIFT_LABELS: Record<string, string> = {
+  MORNING: "Manhã",
+  AFTERNOON: "Tarde",
+  EVENING: "Noite",
+  FULL_TIME: "Integral",
+}
+
+const SHIFT_COLORS: Record<string, string> = {
+  MORNING: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+  AFTERNOON: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  EVENING: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+  FULL_TIME: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+}
+
+function getOccupancyColor(current: number, max: number) {
+  const pct = (current / max) * 100
+  if (pct >= 90) return "text-red-600 dark:text-red-400"
+  if (pct >= 70) return "text-yellow-600 dark:text-yellow-400"
+  return "text-green-600 dark:text-green-400"
+}
+
+// ─── Columns ─────────────────────────────────────────────
+
+const classColumns: ColumnDef<ClassItem>[] = [
+  {
+    id: "name",
+    header: "Nome",
+    cell: (cls) => <div className="font-medium">{cls.name}</div>,
+  },
+  {
+    id: "grade",
+    header: "Série",
+    cell: (cls) => <div className="text-sm">{cls.grade}</div>,
+  },
+  {
+    id: "shift",
+    header: "Turno",
+    cell: (cls) => (
+      <Badge variant="secondary" className={SHIFT_COLORS[cls.shift] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}>
+        {SHIFT_LABELS[cls.shift] || cls.shift}
+      </Badge>
+    ),
+  },
+  {
+    id: "academicYear",
+    header: "Ano Letivo",
+    cell: (cls) => <div className="text-sm">{cls.academicYear}</div>,
+  },
+  {
+    id: "students",
+    header: "Alunos",
+    cell: (cls) => (
+      <div className={`text-sm font-medium ${getOccupancyColor(cls.currentStudents, cls.maxStudents)}`}>
+        {cls.currentStudents}/{cls.maxStudents}
+      </div>
+    ),
+  },
+  {
+    id: "teacher",
+    header: "Professor",
+    cell: (cls) => (
+      <div className="text-sm">
+        {cls.teacher ? cls.teacher.name : <span className="text-muted-foreground">Não atribuído</span>}
+      </div>
+    ),
+  },
+]
+
+// ─── Component ───────────────────────────────────────────
 
 interface ClassesPageProps {
   config: ClassesConfig
   initialClasses: ClassItem[]
-}
-
-const getShiftLabel = (shift: string) => {
-  const shifts: Record<string, string> = {
-    MORNING: "Manhã",
-    AFTERNOON: "Tarde",
-    EVENING: "Noite",
-    FULL_TIME: "Integral",
-  }
-  return shifts[shift] || shift
-}
-
-const getShiftColor = (shift: string) => {
-  const colors: Record<string, string> = {
-    MORNING: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-    AFTERNOON: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-    EVENING: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-    FULL_TIME: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  }
-  return colors[shift] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-}
-
-const getOccupancyColor = (current: number, max: number) => {
-  const percentage = (current / max) * 100
-  if (percentage >= 90) return "text-red-600 dark:text-red-400"
-  if (percentage >= 70) return "text-yellow-600 dark:text-yellow-400"
-  return "text-green-600 dark:text-green-400"
 }
 
 export default function ClassesPage({ config, initialClasses }: ClassesPageProps) {
@@ -78,6 +123,13 @@ export default function ClassesPage({ config, initialClasses }: ClassesPageProps
       setClasses(data)
     }
   }
+
+  const emptyMessage =
+    searchTerm || yearFilter !== "all" || shiftFilter !== "all"
+      ? "Nenhuma turma encontrada com os filtros aplicados."
+      : config.canCreate
+        ? "Nenhuma turma cadastrada. Clique em 'Nova Turma' para começar."
+        : "Nenhuma turma vinculada."
 
   return (
     <main className="space-y-6">
@@ -134,80 +186,16 @@ export default function ClassesPage({ config, initialClasses }: ClassesPageProps
           </div>
 
           {/* Table */}
-          <div className="rounded-md border">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    {config.canSelect && (
-                      <th className="h-12 px-4 text-left align-middle font-medium">
-                        <Checkbox
-                          checked={selectedClasses.length === filteredClasses.length && filteredClasses.length > 0}
-                          onCheckedChange={toggleAll}
-                        />
-                      </th>
-                    )}
-                    <th className="h-12 px-4 text-left align-middle font-medium">Nome</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">Série</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">Turno</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">Ano Letivo</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">Alunos</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">Professor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredClasses.length === 0 ? (
-                    <tr>
-                      <td colSpan={config.canSelect ? 7 : 6} className="h-24 text-center text-muted-foreground">
-                        {searchTerm || yearFilter !== "all" || shiftFilter !== "all"
-                          ? "Nenhuma turma encontrada com os filtros aplicados."
-                          : config.canCreate
-                            ? "Nenhuma turma cadastrada. Clique em 'Nova Turma' para começar."
-                            : "Nenhuma turma vinculada."}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredClasses.map((cls) => (
-                      <tr key={cls.id} className="border-b hover:bg-muted/50 transition-colors">
-                        {config.canSelect && (
-                          <td className="p-4">
-                            <Checkbox
-                              checked={selectedClasses.includes(cls.id)}
-                              onCheckedChange={() => toggleClass(cls.id)}
-                            />
-                          </td>
-                        )}
-                        <td className="p-4">
-                          <div className="font-medium">{cls.name}</div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-sm">{cls.grade}</div>
-                        </td>
-                        <td className="p-4">
-                          <Badge variant="secondary" className={getShiftColor(cls.shift)}>
-                            {getShiftLabel(cls.shift)}
-                          </Badge>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-sm">{cls.academicYear}</div>
-                        </td>
-                        <td className="p-4">
-                          <div className={`text-sm font-medium ${getOccupancyColor(cls.currentStudents, cls.maxStudents)}`}>
-                            {cls.currentStudents}/{cls.maxStudents}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-sm">
-                            {cls.teacher ? cls.teacher.name : <span className="text-muted-foreground">Não atribuído</span>}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable<ClassItem>
+            data={filteredClasses}
+            columns={classColumns}
+            selection={
+              config.canSelect
+                ? { selectedIds: selectedClasses, onToggleSelect: toggleClass, onToggleAll: toggleAll }
+                : undefined
+            }
+            emptyMessage={emptyMessage}
+          />
 
           {/* Footer */}
           {filteredClasses.length > 0 && (

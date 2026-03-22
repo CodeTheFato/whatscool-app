@@ -2,13 +2,29 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { School, Mail, Lock, User, Key, CheckCircle2, ArrowRight, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
+import { AuthBrandingPanel } from "@/components/auth/AuthBrandingPanel"
+
+const STEP_BRANDING = {
+  1: {
+    title: "Bem-vindo!",
+    subtitle: "Valide seu convite e comece a fazer parte da nossa comunidade educacional.",
+  },
+  2: {
+    title: "Quase lá!",
+    subtitle: "Configure sua conta e tenha acesso completo à plataforma.",
+  },
+}
+
+const BRANDING_FEATURES = [
+  { icon: ShieldCheck, title: "Seguro e Confiável", description: "Seus dados protegidos" },
+  { icon: CheckCircle2, title: "Acesso Rápido", description: "Configure em minutos" },
+]
 
 export default function ActivatePage() {
   const router = useRouter()
@@ -16,11 +32,9 @@ export default function ActivatePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isResending, setIsResending] = useState(false)
 
-  // Step 1 - Validar convite
   const [token, setToken] = useState("")
   const [email, setEmail] = useState("")
 
-  // Step 2 - Dados do usuário
   const [inviteData, setInviteData] = useState<any>(null)
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -36,9 +50,7 @@ export default function ActivatePage() {
     try {
       const response = await fetch("/api/users/resend-activation", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       })
 
@@ -63,9 +75,7 @@ export default function ActivatePage() {
     try {
       const response = await fetch("/api/users/validate-token", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, email }),
       })
 
@@ -109,14 +119,8 @@ export default function ActivatePage() {
     try {
       const response = await fetch("/api/users/activate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token,
-          email,
-          password,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, email, password }),
       })
 
       if (!response.ok) {
@@ -124,23 +128,9 @@ export default function ActivatePage() {
         throw new Error(error.error || "Erro ao ativar conta")
       }
 
-      const data = await response.json()
       toast.success("Conta ativada com sucesso!")
-
-      // Aguardar um pouco antes de redirecionar
       setTimeout(() => {
-        // Redirecionar baseado no role
-        if (inviteData?.role === "PARENT") {
-          router.push("/login?email=" + encodeURIComponent(email))
-        } else if (inviteData?.role === "ADMIN") {
-          router.push("/login?email=" + encodeURIComponent(email))
-        } else if (inviteData?.role === "SECRETARY") {
-          router.push("/login?email=" + encodeURIComponent(email))
-        } else if (inviteData?.role === "TEACHER") {
-          router.push("/login?email=" + encodeURIComponent(email))
-        } else {
-          router.push("/login?email=" + encodeURIComponent(email))
-        }
+        router.push("/login?email=" + encodeURIComponent(email))
       }, 1000)
     } catch (error) {
       console.error("Error activating account:", error)
@@ -150,59 +140,24 @@ export default function ActivatePage() {
     }
   }
 
+  const branding = STEP_BRANDING[step]
+
   return (
     <div className="grid md:grid-cols-2 gap-0 max-w-5xl mx-auto overflow-hidden rounded-2xl shadow-2xl bg-white">
-      {/* Left Side - Illustration/Branding */}
-      <div className="hidden md:flex flex-col justify-between p-12 bg-gradient-to-br from-blue-600 via-blue-700 to-purple-800 text-white">
-        <div>
-          <div className="inline-flex items-center gap-2 mb-8">
-            <School className="w-8 h-8" />
-            <span className="text-2xl font-bold">Whatscool</span>
-          </div>
-          <h2 className="text-4xl font-bold mb-4 leading-tight">
-            {step === 1 ? "Bem-vindo!" : "Quase lá!"}
-          </h2>
-          <p className="text-blue-100 text-lg leading-relaxed">
-            {step === 1
-              ? "Valide seu convite e comece a fazer parte da nossa comunidade educacional."
-              : "Configure sua conta e tenha acesso completo à plataforma."}
-          </p>
-        </div>
+      <AuthBrandingPanel
+        title={branding.title}
+        subtitle={branding.subtitle}
+        features={BRANDING_FEATURES}
+      />
 
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-semibold">Seguro e Confiável</p>
-              <p className="text-sm text-blue-100">Seus dados protegidos</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-semibold">Acesso Rápido</p>
-              <p className="text-sm text-blue-100">Configure em minutos</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Right Side - Form */}
       <div className="p-8 md:p-12">
         {/* Progress Indicator */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ${step === 1 ? "bg-primary text-white" : "bg-green-500 text-white"
-            }`}>
+          <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ${step === 1 ? "bg-primary text-white" : "bg-green-500 text-white"}`}>
             {step === 1 ? "1" : <CheckCircle2 className="w-4 h-4" />}
           </div>
-          <div className={`h-1 w-12 rounded-full transition-colors ${step === 2 ? "bg-primary" : "bg-gray-200"
-            }`} />
-          <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ${step === 2 ? "bg-primary text-white" : "bg-gray-200 text-gray-500"
-            }`}>
+          <div className={`h-1 w-12 rounded-full transition-colors ${step === 2 ? "bg-primary" : "bg-gray-200"}`} />
+          <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ${step === 2 ? "bg-primary text-white" : "bg-gray-200 text-gray-500"}`}>
             2
           </div>
         </div>
