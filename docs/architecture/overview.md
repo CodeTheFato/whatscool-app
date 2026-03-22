@@ -1,60 +1,124 @@
-# Architecture Overview
+# Arquitetura — Overview
 
-## Frontend
+## Camadas
 
-- Next.js (App Router)
-- shadcn/ui
-- Tailwind
+```
+┌──────────────────────────────────────────────┐
+│  Frontend (Next.js App Router)               │
+│  Pages → Components → Hooks                  │
+├──────────────────────────────────────────────┤
+│  API Routes (src/app/api/)                   │
+│  Parse request → Auth → Validate → Response  │
+├──────────────────────────────────────────────┤
+│  API Utilities (src/lib/api/)                │
+│  requireAuth, handleApiError, validateBody   │
+├──────────────────────────────────────────────┤
+│  Service Layer (src/lib/services/)           │
+│  Business logic, validações, transações      │
+├──────────────────────────────────────────────┤
+│  Query Helpers (src/lib/queries/)            │
+│  Queries reutilizáveis formatadas            │
+├──────────────────────────────────────────────┤
+│  Prisma ORM (src/lib/prisma.ts)             │
+│  PostgreSQL                                  │
+├──────────────────────────────────────────────┤
+│  External (src/lib/aws/)                     │
+│  SQS → Lambda → WhatsApp Cloud API          │
+└──────────────────────────────────────────────┘
+```
 
-Responsável por:
-- UI
-- formulários
-- dashboards
+## Stack Técnica
 
----
+| Camada | Tecnologia | Versão |
+|--------|-----------|--------|
+| Framework | Next.js (App Router) | 15 |
+| Linguagem | TypeScript | strict |
+| UI | shadcn/ui + Tailwind CSS | - |
+| ORM | Prisma | 7.x |
+| Banco | PostgreSQL | - |
+| Auth | NextAuth (JWT) | 4.x |
+| Validação | Zod | - |
+| Fila | AWS SQS | - |
+| Worker | AWS Lambda | - |
+| WhatsApp | Cloud API (Meta) | - |
 
-## Backend
+## Estrutura de Diretórios
 
-- Next.js API Routes
-- Prisma ORM
+```
+src/
+├── app/
+│   ├── (auth)/              # Páginas de login/ativação
+│   ├── (dashboard)/         # Páginas por role (admin, secretary, teacher, parents)
+│   ├── (onboarding)/        # Wizard de setup inicial
+│   └── api/                 # Route handlers (finos, ~10-25 linhas)
+├── components/
+│   ├── ui/                  # Componentes base (shadcn)
+│   ├── layouts/             # Sidebar, Header
+│   ├── auth/                # AuthProvider, AuthBranding
+│   ├── communication/       # Chat, Announcements, Conversations
+│   ├── students/            # Student CRUD components
+│   ├── teachers/            # Teacher CRUD components
+│   ├── classes/             # Class management
+│   ├── dashboard/           # Stats, ActivityFeed
+│   ├── onboarding/          # Stepper, steps
+│   └── import/              # ImportWizard (CSV)
+├── config/
+│   └── sidebar-menus.ts     # Menu por role
+├── hooks/
+│   └── useCommunication.ts  # Hook de comunicação
+├── lib/
+│   ├── api/                 # Auth guard, error handler, response helpers, validation
+│   ├── services/            # Business logic (9 services)
+│   ├── queries/             # Query helpers reutilizáveis
+│   ├── validations/         # Zod schemas
+│   ├── aws/                 # SQS integration
+│   ├── utils/               # Masks, helpers
+│   ├── prisma.ts            # Prisma singleton
+│   └── auth.ts              # NextAuth config
+└── middleware.ts             # Role-based route protection
+```
 
-Responsável por:
-- regras de negócio
-- persistência
-- autenticação
+## Padrão de Route Handler
 
----
+Cada route handler segue o mesmo padrão (~10-25 linhas):
 
-## Comunicação assíncrona
+```ts
+export async function POST(request: NextRequest) {
+  try {
+    const user = await requireRole(["ADMIN", "SECRETARY"])
+    const data = validateBody(schema, await request.json())
+    const result = await Service.method(user.schoolId, data)
+    return created(result)
+  } catch (error) {
+    return handleApiError(error, "Mensagem de erro")
+  }
+}
+```
 
-Fluxo:
+## Autenticação
 
-1. criação de comunicado
-2. grava no banco
-3. cria AnnouncementRecipients
-4. se WhatsApp:
-   → envia jobs para SQS
-5. Lambda consome
-6. Lambda chama WhatsApp API
+- **Provider:** Credentials (email + password)
+- **Strategy:** JWT (30 dias de expiração)
+- **Session data:** `{ id, email, name, role, schoolId, schoolName, avatar }`
+- **Middleware:** Protege prefixos `/admin`, `/secretary`, `/teacher`, `/parents`
+- **Role redirect:** Usuário com role errado é redirecionado ao seu dashboard
 
----
+## Comunicação Assíncrona (WhatsApp)
 
-## Infra
+```
+POST /api/announcements (notifyViaWhatsapp: true)
+  → AnnouncementService.create()
+    → Prisma $transaction (announcement + recipients)
+    → sendWhatsappJobsBatch(queueUrl, jobs)
+      → SQS SendMessageBatch
+        → Lambda consumer
+          → WhatsApp Cloud API
+```
 
-- AWS SQS → fila de mensagens
-- AWS Lambda → worker
-- WhatsApp Cloud API → envio real
+## Multi-tenant
 
----
-
-## Banco
-
-- PostgreSQL
-
----
-
-## Princípios
-
-- desacoplamento via fila
-- evitar bloqueio na request principal
-- idempotência no processamento
+Toda query é scoped por `schoolId`:
+- `requireAuth()` retorna `user.schoolId`
+- Services recebem `schoolId` como primeiro parâmetro
+- Prisma queries sempre incluem `where: { schoolId }`
+- Um `User` pertence a exatamente uma `School`
