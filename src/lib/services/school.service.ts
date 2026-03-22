@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { ApiError } from "@/lib/api"
+import { normalizePhoneToInternational } from "@/lib/utils/masks"
 
 interface CreateSchoolData {
   name: string
@@ -68,8 +69,8 @@ export const SchoolService = {
         state: data.state,
         zipCode: data.zipCode || null,
         email: data.email,
-        phone: data.phone,
-        whatsapp: data.whatsapp || null,
+        phone: normalizePhoneToInternational(data.phone),
+        whatsapp: data.whatsapp ? normalizePhoneToInternational(data.whatsapp) : null,
         whatsappType: data.whatsappType || null,
         timezone: data.timezone || "America/Sao_Paulo",
         logo: data.logo || null,
@@ -93,13 +94,13 @@ export const SchoolService = {
 
     const where = search
       ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { email: { contains: search, mode: "insensitive" as const } },
-            { city: { contains: search, mode: "insensitive" as const } },
-            { cnpj: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { email: { contains: search, mode: "insensitive" as const } },
+          { city: { contains: search, mode: "insensitive" as const } },
+          { cnpj: { contains: search, mode: "insensitive" as const } },
+        ],
+      }
       : {}
 
     const [schools, total] = await Promise.all([
@@ -195,8 +196,8 @@ export const SchoolService = {
     if (body.city) updateData.city = body.city
     if (body.state) updateData.state = body.state
     if (body.mainEmail) updateData.email = body.mainEmail
-    if (body.officePhone) updateData.phone = body.officePhone
-    if (body.whatsapp) updateData.whatsapp = body.whatsapp
+    if (body.officePhone) updateData.phone = normalizePhoneToInternational(body.officePhone)
+    if (body.whatsapp) updateData.whatsapp = normalizePhoneToInternational(body.whatsapp)
     if (body.whatsappType) updateData.whatsappType = body.whatsappType
     if (body.timezone) updateData.timezone = body.timezone
     if (body.address !== undefined) updateData.address = body.address

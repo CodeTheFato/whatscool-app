@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { ApiError } from "@/lib/api"
 import { randomBytes } from "crypto"
 import { hash } from "bcryptjs"
+import { normalizePhoneToInternational } from "@/lib/utils/masks"
 import type { UserRole } from "@prisma/client"
 
 export const UserService = {
@@ -46,7 +47,7 @@ export const UserService = {
         email,
         password: "",
         role: role as UserRole,
-        phone: phone || null,
+        phone: phone ? normalizePhoneToInternational(phone) : null,
         schoolId,
         isActive: false,
       },

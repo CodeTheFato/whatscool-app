@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { ApiError } from "@/lib/api"
 import { randomBytes } from "crypto"
-import { unmask } from "@/lib/utils/masks"
+import { unmask, normalizePhoneToInternational } from "@/lib/utils/masks"
 import { getSchoolStudents, getTeacherStudents } from "@/lib/queries/students"
 import type { z } from "zod"
 import type { studentFormSchema, studentUpdateSchema } from "@/lib/validations/student"
@@ -133,7 +133,7 @@ export const StudentService = {
           email: data.email,
           password: "",
           role: "STUDENT",
-          phone: data.phone || null,
+          phone: data.phone ? normalizePhoneToInternational(data.phone) : null,
           schoolId,
           isActive: false,
         },
@@ -163,7 +163,7 @@ export const StudentService = {
           email: data.guardian1.email,
           password: "",
           role: "PARENT",
-          phone: data.guardian1.phone,
+          phone: normalizePhoneToInternational(data.guardian1.phone),
           schoolId,
           isActive: false,
         },
@@ -203,7 +203,7 @@ export const StudentService = {
             email: data.guardian2.email,
             password: "",
             role: "PARENT",
-            phone: data.guardian2.phone,
+            phone: normalizePhoneToInternational(data.guardian2.phone),
             schoolId,
             isActive: false,
           },
@@ -330,9 +330,9 @@ export const StudentService = {
       }
     }
 
-    const cleanPhone = data.phone ? unmask(data.phone) : null
+    const cleanPhone = data.phone ? normalizePhoneToInternational(data.phone) : null
     const cleanCpf = data.cpf ? unmask(data.cpf) : null
-    const cleanG1Phone = unmask(data.guardian1.phone)
+    const cleanG1Phone = normalizePhoneToInternational(data.guardian1.phone)
     const cleanG1Cpf = data.guardian1.cpf ? unmask(data.guardian1.cpf) : null
 
     const result = await prisma.$transaction(async (tx) => {
@@ -383,7 +383,7 @@ export const StudentService = {
       const existingSP2 = student.studentParents[1]
 
       if (data.guardian2) {
-        const cleanG2Phone = unmask(data.guardian2.phone)
+        const cleanG2Phone = normalizePhoneToInternational(data.guardian2.phone)
         const cleanG2Cpf = data.guardian2.cpf ? unmask(data.guardian2.cpf) : null
 
         if (existingSP2) {

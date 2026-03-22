@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { ApiError } from "@/lib/api"
-import { unmask } from "@/lib/utils/masks"
+import { unmask, normalizePhoneToInternational } from "@/lib/utils/masks"
 import { getSchoolTeachers } from "@/lib/queries/teachers"
 import type { z } from "zod"
 import type { teacherFormSchema, teacherUpdateSchema } from "@/lib/validations/teacher"
@@ -89,7 +89,7 @@ export const TeacherService = {
   },
 
   async create(schoolId: string, data: TeacherCreateData) {
-    const cleanPhone = data.phone ? unmask(data.phone) : null
+    const cleanPhone = data.phone ? normalizePhoneToInternational(data.phone) : null
     const cleanCpf = data.cpf ? unmask(data.cpf) : null
 
     // Check email uniqueness
@@ -190,7 +190,7 @@ export const TeacherService = {
   },
 
   async update(schoolId: string, id: string, data: TeacherUpdateData) {
-    const cleanPhone = data.phone ? unmask(data.phone) : null
+    const cleanPhone = data.phone ? normalizePhoneToInternational(data.phone) : null
     const cleanCpf = data.cpf ? unmask(data.cpf) : null
 
     const teacher = await prisma.teacher.findFirst({
