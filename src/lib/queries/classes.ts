@@ -5,6 +5,7 @@ export async function getSchoolClasses(schoolId: string): Promise<ClassItem[]> {
   const classes = await prisma.class.findMany({
     where: { schoolId },
     include: {
+      academicYear: { select: { year: true } },
       classTeachers: {
         where: { role: "MAIN" },
         take: 1,
@@ -19,7 +20,7 @@ export async function getSchoolClasses(schoolId: string): Promise<ClassItem[]> {
       _count: { select: { students: true } },
     },
     orderBy: [
-      { academicYear: "desc" },
+      { academicYear: { year: "desc" } },
       { grade: "asc" },
       { name: "asc" },
     ],
@@ -32,7 +33,7 @@ export async function getSchoolClasses(schoolId: string): Promise<ClassItem[]> {
       name: cls.name,
       grade: cls.grade,
       shift: cls.shift,
-      academicYear: cls.academicYear,
+      academicYear: cls.academicYear.year,
       maxStudents: cls.maxStudents,
       currentStudents: cls._count.students,
       teacher: mainTeacher
@@ -63,6 +64,7 @@ export async function getTeacherClasses(schoolId: string, userId: string): Promi
   const classes = await prisma.class.findMany({
     where: { id: { in: classIds }, schoolId },
     include: {
+      academicYear: { select: { year: true } },
       classTeachers: {
         where: { role: "MAIN" },
         take: 1,
@@ -77,7 +79,7 @@ export async function getTeacherClasses(schoolId: string, userId: string): Promi
       _count: { select: { students: true } },
     },
     orderBy: [
-      { academicYear: "desc" },
+      { academicYear: { year: "desc" } },
       { grade: "asc" },
       { name: "asc" },
     ],
@@ -90,7 +92,7 @@ export async function getTeacherClasses(schoolId: string, userId: string): Promi
       name: cls.name,
       grade: cls.grade,
       shift: cls.shift,
-      academicYear: cls.academicYear,
+      academicYear: cls.academicYear.year,
       maxStudents: cls.maxStudents,
       currentStudents: cls._count.students,
       teacher: mainTeacher

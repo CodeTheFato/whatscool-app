@@ -19,16 +19,14 @@ model Student {
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  school         School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  class          Class?               @relation(fields: [classId], references: [id])
-  classId        String?              @map("class_id")
-  parents        Parent[]
-  grades         Grade[]
-  attendances    Attendance[]
-  activities     ActivitySubmission[]
-  authorizations Authorization[]
-  announcements  Announcement[]
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school          School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class           Class?               @relation(fields: [classId], references: [id])
+  classId         String?              @map("class_id")
+  studentParents  StudentParent[]
+  attendances     Attendance[]
+  authorizations  Authorization[]
+  announcements   Announcement[]
 
   @@unique([schoolId, registrationId])
   @@index([schoolId, status])
@@ -47,13 +45,34 @@ model Parent {
   userId    String   @unique @map("user_id")
   schoolId  String   @map("school_id")
   cpf       String?
-  kinship   String // Relationship: father, mother, guardian, etc.
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  students Student[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentParents StudentParent[]
 
+  @@index([schoolId])
   @@map("parents")
+}
+
+model StudentParent {
+  id          String   @id @default(uuid())
+  studentId   String   @map("student_id")
+  parentId    String   @map("parent_id")
+  kinship     String
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  canPickup   Boolean  @default(true) @map("can_pickup")
+  isEmergency Boolean  @default(false) @map("is_emergency")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, parentId])
+  @@index([parentId])
+  @@map("student_parents")
 }

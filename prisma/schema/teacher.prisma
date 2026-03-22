@@ -24,7 +24,6 @@ model Teacher {
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   classTeachers ClassTeacher[]
   activities    Activity[]
-  grades        Grade[]
   attendances   Attendance[]
   schedules     Schedule[]
 

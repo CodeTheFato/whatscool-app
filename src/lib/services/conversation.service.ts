@@ -50,7 +50,9 @@ export const ConversationService = {
                 id: true, name: true, email: true, role: true,
                 parent: {
                   include: {
-                    students: { include: { user: { select: { name: true } } } },
+                    studentParents: {
+                      include: { student: { include: { user: { select: { name: true } } } } },
+                    },
                   },
                 },
               },

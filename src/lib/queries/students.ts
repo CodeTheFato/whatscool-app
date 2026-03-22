@@ -9,13 +9,13 @@ function formatStudent(student: any): StudentRow {
     phone: student.user.phone,
     registrationId: student.registrationId,
     class: student.class?.name || null,
-    parents: student.parents.map((parent: any) => ({
-      id: parent.id,
-      name: parent.user.name,
-      email: parent.user.email,
-      phone: parent.user.phone,
-      kinship: parent.kinship,
-      isActive: parent.user.isActive,
+    parents: student.studentParents.map((sp: any) => ({
+      id: sp.parent.id,
+      name: sp.parent.user.name,
+      email: sp.parent.user.email,
+      phone: sp.parent.user.phone,
+      kinship: sp.kinship,
+      isActive: sp.parent.user.isActive,
     })),
     status: student.status,
     isActive: student.user.isActive,
@@ -40,18 +40,23 @@ const studentInclude = {
       name: true,
     },
   },
-  parents: {
+  studentParents: {
     include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          isActive: true,
+      parent: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              isActive: true,
+            },
+          },
         },
       },
     },
+    orderBy: { isPrimary: "desc" as const },
   },
 }
 

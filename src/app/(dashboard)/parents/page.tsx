@@ -6,7 +6,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Calendar,
   FileText,
-  CheckCircle2,
   Clock,
 } from "lucide-react"
 import { ActivityFeed } from "@/components/dashboard"
@@ -16,13 +15,6 @@ export default function ParentsDashboard() {
   const user = {
     name: "Ana Paula Costa",
     email: "ana@email.com",
-  }
-
-  const financialStatus = {
-    currentMonth: "Fevereiro 2026",
-    status: "Em dia",
-    nextDueDate: "10/03/2026",
-    value: "R$ 850,00",
   }
 
   const children = [
@@ -49,7 +41,7 @@ export default function ParentsDashboard() {
   const recentNotifications: ActivityItem[] = [
     { type: "info", icon: FileText, title: "Nova atividade disponível", message: "Lucas - Matemática: Exercícios sobre frações", time: "há 3 horas" },
     { type: "warning", icon: Clock, title: "Reunião agendada", message: "Reunião de pais - 2º Ano A em 15/03", time: "há 1 dia" },
-    { type: "success", icon: CheckCircle2, title: "Pagamento confirmado", message: "Mensalidade de janeiro paga com sucesso", time: "há 2 dias" },
+    { type: "success", icon: FileText, title: "Comunicado lido", message: "Reunião geral confirmada", time: "há 2 dias" },
   ]
 
   return (
@@ -60,39 +52,6 @@ export default function ParentsDashboard() {
           Acompanhe o desempenho dos seus filhos
         </p>
       </div>
-
-      {/* Financial Status Card */}
-      <Card className="border-l-4 border-l-green-500">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Situação Financeira</CardTitle>
-              <CardDescription>{financialStatus.currentMonth}</CardDescription>
-            </div>
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <CheckCircle2 className="w-3 h-3 mr-1" />
-              {financialStatus.status}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Próximo vencimento</p>
-              <p className="text-lg font-semibold">{financialStatus.nextDueDate}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">Valor</p>
-              <p className="text-lg font-semibold">{financialStatus.value}</p>
-            </div>
-            <Link href="/parents/financial">
-              <Button variant="outline" size="sm">
-                Ver Detalhes
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Children Cards */}
       <div>

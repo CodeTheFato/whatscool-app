@@ -26,12 +26,17 @@ export const StudentService = {
           select: { id: true, name: true, email: true, phone: true, isActive: true },
         },
         class: { select: { id: true, name: true } },
-        parents: {
+        studentParents: {
           include: {
-            user: {
-              select: { id: true, name: true, email: true, phone: true, isActive: true },
+            parent: {
+              include: {
+                user: {
+                  select: { id: true, name: true, email: true, phone: true, isActive: true },
+                },
+              },
             },
           },
+          orderBy: { isPrimary: "desc" },
         },
       },
     })
@@ -56,15 +61,15 @@ export const StudentService = {
       isActive: student.user.isActive,
       classId: student.classId,
       className: student.class?.name ?? null,
-      parents: student.parents.map((p) => ({
-        id: p.id,
-        userId: p.userId,
-        name: p.user.name,
-        email: p.user.email,
-        phone: p.user.phone,
-        kinship: p.kinship,
-        cpf: p.cpf,
-        isActive: p.user.isActive,
+      parents: student.studentParents.map((sp) => ({
+        id: sp.parent.id,
+        userId: sp.parent.userId,
+        name: sp.parent.user.name,
+        email: sp.parent.user.email,
+        phone: sp.parent.user.phone,
+        kinship: sp.kinship,
+        cpf: sp.parent.cpf,
+        isActive: sp.parent.user.isActive,
       })),
       createdAt: student.createdAt,
       updatedAt: student.updatedAt,
@@ -151,6 +156,7 @@ export const StudentService = {
         },
       })
 
+      // Create Guardian 1
       const guardian1User = await tx.user.create({
         data: {
           name: data.guardian1.name,
@@ -163,13 +169,20 @@ export const StudentService = {
         },
       })
 
-      await tx.parent.create({
+      const parent1 = await tx.parent.create({
         data: {
           userId: guardian1User.id,
           schoolId,
           cpf: data.guardian1.cpf || null,
+        },
+      })
+
+      await tx.studentParent.create({
+        data: {
+          studentId: newStudent.id,
+          parentId: parent1.id,
           kinship: data.guardian1.kinship,
-          students: { connect: { id: newStudent.id } },
+          isPrimary: true,
         },
       })
 
@@ -181,6 +194,7 @@ export const StudentService = {
         },
       })
 
+      // Create Guardian 2 (optional)
       let guardian2User = null
       if (data.guardian2) {
         guardian2User = await tx.user.create({
@@ -195,13 +209,20 @@ export const StudentService = {
           },
         })
 
-        await tx.parent.create({
+        const parent2 = await tx.parent.create({
           data: {
             userId: guardian2User.id,
             schoolId,
             cpf: data.guardian2.cpf || null,
+          },
+        })
+
+        await tx.studentParent.create({
+          data: {
+            studentId: newStudent.id,
+            parentId: parent2.id,
             kinship: data.guardian2.kinship,
-            students: { connect: { id: newStudent.id } },
+            isPrimary: false,
           },
         })
 
@@ -269,7 +290,10 @@ export const StudentService = {
       where: { id, schoolId },
       include: {
         user: true,
-        parents: { include: { user: true } },
+        studentParents: {
+          include: { parent: { include: { user: true } } },
+          orderBy: { isPrimary: "desc" },
+        },
       },
     })
     if (!student) {
@@ -330,49 +354,59 @@ export const StudentService = {
       })
 
       // Update Parent 1
-      const existingParent1 = student.parents[0]
-      if (existingParent1) {
-        if (data.guardian1.email !== existingParent1.user.email) {
+      const existingSP1 = student.studentParents[0]
+      if (existingSP1) {
+        if (data.guardian1.email !== existingSP1.parent.user.email) {
           const dup = await tx.user.findFirst({
-            where: { email: data.guardian1.email, schoolId, id: { not: existingParent1.userId } },
+            where: { email: data.guardian1.email, schoolId, id: { not: existingSP1.parent.userId } },
           })
           if (dup) throw new Error("Email do responsável 1 já cadastrado nesta escola")
         }
 
         await tx.user.update({
-          where: { id: existingParent1.userId },
+          where: { id: existingSP1.parent.userId },
           data: { name: data.guardian1.name, email: data.guardian1.email, phone: cleanG1Phone },
         })
 
         await tx.parent.update({
-          where: { id: existingParent1.id },
-          data: { kinship: data.guardian1.kinship, cpf: cleanG1Cpf },
+          where: { id: existingSP1.parent.id },
+          data: { cpf: cleanG1Cpf },
+        })
+
+        await tx.studentParent.update({
+          where: { id: existingSP1.id },
+          data: { kinship: data.guardian1.kinship },
         })
       }
 
       // Update / Create / Remove Parent 2
-      const existingParent2 = student.parents[1]
+      const existingSP2 = student.studentParents[1]
 
       if (data.guardian2) {
         const cleanG2Phone = unmask(data.guardian2.phone)
         const cleanG2Cpf = data.guardian2.cpf ? unmask(data.guardian2.cpf) : null
 
-        if (existingParent2) {
-          if (data.guardian2.email !== existingParent2.user.email) {
+        if (existingSP2) {
+          if (data.guardian2.email !== existingSP2.parent.user.email) {
             const dup = await tx.user.findFirst({
-              where: { email: data.guardian2.email, schoolId, id: { not: existingParent2.userId } },
+              where: { email: data.guardian2.email, schoolId, id: { not: existingSP2.parent.userId } },
             })
             if (dup) throw new Error("Email do responsável 2 já cadastrado nesta escola")
           }
 
           await tx.user.update({
-            where: { id: existingParent2.userId },
+            where: { id: existingSP2.parent.userId },
             data: { name: data.guardian2.name, email: data.guardian2.email, phone: cleanG2Phone },
           })
 
           await tx.parent.update({
-            where: { id: existingParent2.id },
-            data: { kinship: data.guardian2.kinship, cpf: cleanG2Cpf },
+            where: { id: existingSP2.parent.id },
+            data: { cpf: cleanG2Cpf },
+          })
+
+          await tx.studentParent.update({
+            where: { id: existingSP2.id },
+            data: { kinship: data.guardian2.kinship },
           })
         } else {
           const dupEmail = await tx.user.findFirst({
@@ -392,28 +426,34 @@ export const StudentService = {
             },
           })
 
-          await tx.parent.create({
+          const newParent = await tx.parent.create({
             data: {
               userId: newUser.id,
               schoolId,
               cpf: cleanG2Cpf,
+            },
+          })
+
+          await tx.studentParent.create({
+            data: {
+              studentId: id,
+              parentId: newParent.id,
               kinship: data.guardian2.kinship,
-              students: { connect: { id } },
+              isPrimary: false,
             },
           })
         }
-      } else if (existingParent2) {
-        await tx.parent.update({
-          where: { id: existingParent2.id },
-          data: { students: { disconnect: { id } } },
+      } else if (existingSP2) {
+        // Remove Parent 2 junction
+        await tx.studentParent.delete({ where: { id: existingSP2.id } })
+
+        // Check if parent has other student links
+        const otherLinks = await tx.studentParent.findMany({
+          where: { parentId: existingSP2.parent.id },
         })
-        const otherStudents = await tx.parent.findUnique({
-          where: { id: existingParent2.id },
-          include: { students: { select: { id: true } } },
-        })
-        if (!otherStudents || otherStudents.students.length === 0) {
-          await tx.parent.delete({ where: { id: existingParent2.id } })
-          await tx.user.delete({ where: { id: existingParent2.userId } })
+        if (otherLinks.length === 0) {
+          await tx.parent.delete({ where: { id: existingSP2.parent.id } })
+          await tx.user.delete({ where: { id: existingSP2.parent.userId } })
         }
       }
 

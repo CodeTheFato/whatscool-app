@@ -11,18 +11,23 @@ export async function getRecipients(schoolId: string): Promise<{
       include: {
         students: {
           include: {
-            parents: {
+            studentParents: {
               include: {
-                user: {
-                  select: { id: true, isActive: true },
+                parent: {
+                  include: {
+                    user: {
+                      select: { id: true, isActive: true },
+                    },
+                  },
                 },
               },
             },
           },
         },
+        academicYear: { select: { year: true } },
       },
       orderBy: [
-        { academicYear: "desc" },
+        { academicYear: { year: "desc" } },
         { grade: "asc" },
         { name: "asc" },
       ],
@@ -36,10 +41,14 @@ export async function getRecipients(schoolId: string): Promise<{
         class: {
           select: { id: true, name: true },
         },
-        parents: {
+        studentParents: {
           include: {
-            user: {
-              select: { id: true, name: true, isActive: true },
+            parent: {
+              include: {
+                user: {
+                  select: { id: true, name: true, isActive: true },
+                },
+              },
             },
           },
         },
@@ -51,9 +60,9 @@ export async function getRecipients(schoolId: string): Promise<{
   const formattedClasses: ClassData[] = classes.map((cls) => {
     const uniqueParentIds = new Set<string>()
     cls.students.forEach((student) => {
-      student.parents.forEach((parent) => {
-        if (parent.user.isActive) {
-          uniqueParentIds.add(parent.user.id)
+      student.studentParents.forEach((sp) => {
+        if (sp.parent.user.isActive) {
+          uniqueParentIds.add(sp.parent.user.id)
         }
       })
     })
@@ -71,11 +80,11 @@ export async function getRecipients(schoolId: string): Promise<{
       name: student.user.name,
       classId: student.class?.id || null,
       className: student.class?.name || "Sem turma",
-      parents: student.parents
-        .filter((parent) => parent.user.isActive)
-        .map((parent) => ({
-          id: parent.user.id,
-          name: parent.user.name,
+      parents: student.studentParents
+        .filter((sp) => sp.parent.user.isActive)
+        .map((sp) => ({
+          id: sp.parent.user.id,
+          name: sp.parent.user.name,
         })),
     }))
 

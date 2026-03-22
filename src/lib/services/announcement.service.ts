@@ -141,16 +141,18 @@ export const AnnouncementService = {
       const students = await prisma.student.findMany({
         where: { classId: classId!, schoolId: user.schoolId, status: "ACTIVE" },
         include: {
-          parents: { include: { user: { select: { id: true, isActive: true, phone: true } } } },
+          studentParents: {
+            include: { parent: { include: { user: { select: { id: true, isActive: true, phone: true } } } } },
+          },
         },
       })
 
       const parentIds = new Set<string>()
       for (const s of students) {
-        for (const p of s.parents) {
-          if (p.user.isActive) {
-            parentIds.add(p.user.id)
-            recipientPhoneMap.set(p.user.id, p.user.phone ?? null)
+        for (const sp of s.studentParents) {
+          if (sp.parent.user.isActive) {
+            parentIds.add(sp.parent.user.id)
+            recipientPhoneMap.set(sp.parent.user.id, sp.parent.user.phone ?? null)
           }
         }
       }
@@ -159,7 +161,9 @@ export const AnnouncementService = {
       const student = await prisma.student.findFirst({
         where: { id: studentId!, schoolId: user.schoolId },
         include: {
-          parents: { include: { user: { select: { id: true, isActive: true, phone: true } } } },
+          studentParents: {
+            include: { parent: { include: { user: { select: { id: true, isActive: true, phone: true } } } } },
+          },
         },
       })
       if (!student) {
@@ -167,10 +171,10 @@ export const AnnouncementService = {
       }
 
       const parentIds = new Set<string>()
-      for (const p of student.parents) {
-        if (p.user.isActive) {
-          parentIds.add(p.user.id)
-          recipientPhoneMap.set(p.user.id, p.user.phone ?? null)
+      for (const sp of student.studentParents) {
+        if (sp.parent.user.isActive) {
+          parentIds.add(sp.parent.user.id)
+          recipientPhoneMap.set(sp.parent.user.id, sp.parent.user.phone ?? null)
         }
       }
       recipientUserIds = Array.from(parentIds)

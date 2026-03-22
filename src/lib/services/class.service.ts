@@ -9,11 +9,23 @@ export const ClassService = {
   },
 
   async create(schoolId: string, data: ClassFormValues) {
+    // Find or create AcademicYear
+    let academicYear = await prisma.academicYear.findUnique({
+      where: { schoolId_year: { schoolId, year: data.academicYear } },
+    })
+
+    if (!academicYear) {
+      academicYear = await prisma.academicYear.create({
+        data: { schoolId, year: data.academicYear, isCurrent: true },
+      })
+    }
+
+    // Check duplicate class name within same academic year
     const existing = await prisma.class.findFirst({
       where: {
         schoolId,
         name: data.name,
-        academicYear: data.academicYear,
+        academicYearId: academicYear.id,
       },
     })
 
@@ -27,7 +39,7 @@ export const ClassService = {
         name: data.name,
         grade: data.grade,
         shift: data.shift,
-        academicYear: data.academicYear,
+        academicYearId: academicYear.id,
         maxStudents: data.maxStudents,
       },
     })
@@ -37,7 +49,7 @@ export const ClassService = {
       name: newClass.name,
       grade: newClass.grade,
       shift: newClass.shift,
-      academicYear: newClass.academicYear,
+      academicYear: data.academicYear,
       maxStudents: newClass.maxStudents,
       teacher: null,
       message: "Turma cadastrada com sucesso!",

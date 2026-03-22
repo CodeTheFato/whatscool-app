@@ -7,7 +7,6 @@ import {
   GraduationCap,
   UserCheck,
   BookOpen,
-  DollarSign,
   CheckCircle2,
   Clock,
   MessageSquare,
@@ -25,7 +24,7 @@ export default function SecretaryDashboard() {
 
   const recentActivities: ActivityItem[] = [
     { type: "success", icon: CheckCircle2, title: "Novo aluno matriculado", message: "Maria Santos - 2º Ano A", time: "há 2 horas" },
-    { type: "info", icon: DollarSign, title: "Pagamento confirmado", message: "Mensalidade de Pedro Silva", time: "há 5 horas" },
+    { type: "info", icon: CheckCircle2, title: "Comunicado enviado", message: "Reunião de pais confirmada", time: "há 5 horas" },
     { type: "warning", icon: MessageSquare, title: "Nova comunicação", message: "Reunião de pais - 3º Ano", time: "há 1 dia" },
   ]
 
@@ -113,10 +112,10 @@ export default function SecretaryDashboard() {
                 <span className="text-xs">Gerenciar Professores</span>
               </Button>
             </Link>
-            <Link href="/secretary/financial">
+            <Link href="/secretary/communication">
               <Button variant="outline" className="w-full h-auto flex-col gap-2 py-4">
-                <DollarSign className="h-6 w-6" />
-                <span className="text-xs">Financeiro</span>
+                <MessageSquare className="h-6 w-6" />
+                <span className="text-xs">Comunicação</span>
               </Button>
             </Link>
           </div>
