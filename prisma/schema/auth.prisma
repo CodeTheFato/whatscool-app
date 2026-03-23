@@ -25,6 +25,7 @@ model User {
   ownedConversations       Conversation[]            @relation("OwnedConversations")
   conversationParticipants ConversationParticipant[]
   conversationMessages     ConversationMessage[]
+  activityRecipients       ActivityRecipient[]
   accounts                 Account[]
   sessions                 Session[]
 

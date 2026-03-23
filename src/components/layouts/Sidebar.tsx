@@ -15,6 +15,7 @@ import {
   MessageSquare,
   BarChart3,
   Settings,
+  Calendar,
 } from "lucide-react"
 
 import {
@@ -46,7 +47,8 @@ const iconMap = {
   Building2,
   MessageSquare,
   BarChart3,
-  Settings
+  Settings,
+  Calendar,
 }
 
 const roleColors: Record<string, string> = {

@@ -39,12 +39,14 @@ export const sidebarMenus: Record<UserRole, MenuItem[]> = {
   ],
   teacher: [
     { label: 'Painel', href: '/teacher', icon: 'Home' },
+    { label: 'Agenda', href: '/teacher/agenda', icon: 'Calendar' },
     { label: 'Alunos', href: '/teacher/students', icon: 'Users' },
     { label: 'Turmas', href: '/teacher/classes', icon: 'School' },
     { label: 'Comunicação', href: '/teacher/communication', icon: 'MessageSquare' },
   ],
   parents: [
     { label: 'Painel', href: '/parents', icon: 'Home' },
+    { label: 'Agenda', href: '/parents/agenda', icon: 'Calendar' },
     { label: 'Filhos', href: '/parents/children', icon: 'Users' },
     { label: 'Comunicação', href: '/parents/messages', icon: 'MessageSquare' },
   ],
