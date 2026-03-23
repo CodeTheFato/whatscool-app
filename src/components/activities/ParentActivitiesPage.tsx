@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BookOpen, CalendarDays, Loader2, Calendar } from "lucide-react"
-import AgendaCard, { type AgendaItem } from "./AgendaCard"
-import AgendaDetailModal from "./AgendaDetailModal"
+import ActivityCard, { type ActivityItem } from "./ActivityCard"
+import ActivityDetailModal from "./ActivityDetailModal"
 
-export default function ParentAgendaPage() {
-  const [activities, setActivities] = useState<AgendaItem[]>([])
+export default function ParentActivitiesPage() {
+  const [activities, setActivities] = useState<ActivityItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("all")
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -16,7 +16,7 @@ export default function ParentAgendaPage() {
   const fetchActivities = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await fetch("/api/parents/agenda")
+      const res = await fetch("/api/parents/activities")
       if (res.ok) {
         setActivities(await res.json())
       }
@@ -33,7 +33,7 @@ export default function ParentAgendaPage() {
 
   const handleMarkRead = async (activityId: string) => {
     try {
-      await fetch(`/api/parents/agenda/${activityId}/read`, { method: "PATCH" })
+      await fetch(`/api/parents/activities/${activityId}/read`, { method: "PATCH" })
       setActivities((prev) =>
         prev.map((a) =>
           a.id === activityId ? { ...a, readAt: new Date().toISOString(), unread: false } : a
@@ -124,7 +124,7 @@ export default function ParentAgendaPage() {
             ) : (
               <div className="space-y-4">
                 {filtered.map((item) => (
-                  <AgendaCard
+                  <ActivityCard
                     key={item.id}
                     item={item}
                     onClick={() => {
@@ -140,7 +140,7 @@ export default function ParentAgendaPage() {
       </div>
 
       {/* Detail Drawer */}
-      <AgendaDetailModal
+      <ActivityDetailModal
         activityId={selectedId}
         onClose={() => setSelectedId(null)}
       />

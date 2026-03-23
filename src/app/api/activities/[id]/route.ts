@@ -1,5 +1,5 @@
 import { requireRole, handleApiError, success } from "@/lib/api"
-import { AgendaService } from "@/lib/services/agenda.service"
+import { ActivityService } from "@/lib/services/activity.service"
 
 export async function GET(
   _request: Request,
@@ -8,7 +8,7 @@ export async function GET(
   try {
     const user = await requireRole(["ADMIN", "SECRETARY", "TEACHER", "PARENT"])
     const { id } = await params
-    const data = await AgendaService.getById(user.schoolId, id)
+    const data = await ActivityService.getById(user.schoolId, id)
     return success(data)
   } catch (error) {
     return handleApiError(error, "Erro ao buscar atividade")

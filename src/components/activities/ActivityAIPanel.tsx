@@ -8,19 +8,19 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sparkles, Loader2, Wand2, X } from "lucide-react"
 
-interface AgendaAIPanelProps {
+interface ActivityAIPanelProps {
   subjectName: string
   gradeName: string
   onGenerated: (result: { title: string; description: string }) => void
   onClose: () => void
 }
 
-export default function AgendaAIPanel({
+export default function ActivityAIPanel({
   subjectName,
   gradeName,
   onGenerated,
   onClose,
-}: AgendaAIPanelProps) {
+}: ActivityAIPanelProps) {
   const [topic, setTopic] = useState("")
   const [difficulty, setDifficulty] = useState("MEDIUM")
   const [format, setFormat] = useState("EXERCISES")
@@ -37,7 +37,7 @@ export default function AgendaAIPanel({
     setError("")
 
     try {
-      const response = await fetch("/api/agenda/ai/generate", {
+      const response = await fetch("/api/activities/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -14,7 +14,7 @@ import {
   Eye,
 } from "lucide-react"
 
-export interface AgendaItem {
+export interface ActivityItem {
   id: string
   title: string
   description: string
@@ -52,14 +52,14 @@ const TYPE_CONFIG = {
   },
 }
 
-interface AgendaCardProps {
-  item: AgendaItem
+interface ActivityCardProps {
+  item: ActivityItem
   showStats?: boolean
   isSelected?: boolean
   onClick?: () => void
 }
 
-export default function AgendaCard({ item, showStats, isSelected, onClick }: AgendaCardProps) {
+export default function ActivityCard({ item, showStats, isSelected, onClick }: ActivityCardProps) {
   const config = TYPE_CONFIG[item.type]
   const TypeIcon = config.icon
 

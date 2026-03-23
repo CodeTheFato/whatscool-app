@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma"
 import { ApiError } from "@/lib/api"
 import { sendWhatsappJobsBatch, type WhatsappJob } from "@/lib/aws/sqs"
-import type { AgendaFormValues } from "@/lib/validations/agenda"
+import type { ActivityFormValues } from "@/lib/validations/activity"
 import type { ActivityType } from "@prisma/client"
 
-export const AgendaService = {
-  async create(schoolId: string, teacherId: string, userId: string, data: AgendaFormValues) {
+export const ActivityService = {
+  async create(schoolId: string, teacherId: string, userId: string, data: ActivityFormValues) {
     const {
       type,
       classId,
@@ -192,9 +192,211 @@ export const AgendaService = {
     }
   },
 
-  async listForTeacher(schoolId: string, teacherId: string) {
+  async createSchoolEvent(schoolId: string, userId: string, data: {
+    title: string
+    description: string
+    dueDate?: string | null
+    sendToParents?: boolean
+    notifyWhatsapp?: boolean
+    classIds?: string[]
+  }) {
+    const { title, description, dueDate, sendToParents = false, notifyWhatsapp = false, classIds } = data
+
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { name: true },
+    })
+
+    // Resolver turmas: se classIds fornecido, usar essas; senão, todas as turmas ativas da escola
+    let targetClassIds: string[]
+    if (classIds && classIds.length > 0) {
+      targetClassIds = classIds
+    } else {
+      const allClasses = await prisma.class.findMany({
+        where: { schoolId },
+        select: { id: true },
+      })
+      targetClassIds = allClasses.map((c) => c.id)
+    }
+
+    if (targetClassIds.length === 0) {
+      throw new ApiError(422, "Nenhuma turma encontrada na escola")
+    }
+
+    const now = new Date()
+    const createdActivities: { id: string; classId: string }[] = []
+
+    for (const classId of targetClassIds) {
+      // Resolver pais da turma
+      let recipientUserIds: string[] = []
+      const recipientPhoneMap = new Map<string, string | null>()
+
+      if (sendToParents) {
+        const students = await prisma.student.findMany({
+          where: { classId, schoolId, status: "ACTIVE" },
+          include: {
+            studentParents: {
+              include: {
+                parent: {
+                  include: {
+                    user: { select: { id: true, isActive: true, phone: true } },
+                  },
+                },
+              },
+            },
+          },
+        })
+
+        const parentIds = new Set<string>()
+        for (const s of students) {
+          for (const sp of s.studentParents) {
+            if (sp.parent.user.isActive) {
+              parentIds.add(sp.parent.user.id)
+              recipientPhoneMap.set(sp.parent.user.id, sp.parent.user.phone ?? null)
+            }
+          }
+        }
+        recipientUserIds = Array.from(parentIds)
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        const activity = await tx.activity.create({
+          data: {
+            schoolId,
+            teacherId: null,
+            classId,
+            title: title.trim(),
+            description: description.trim(),
+            type: "EVENT" as ActivityType,
+            dueDate: dueDate ? new Date(dueDate) : null,
+            sendToParents,
+            notifyWhatsapp: sendToParents && notifyWhatsapp,
+            aiGenerated: false,
+            publishedAt: sendToParents ? now : null,
+          },
+        })
+
+        if (sendToParents && recipientUserIds.length > 0) {
+          await tx.activityRecipient.createMany({
+            data: recipientUserIds.map((uid) => ({
+              activityId: activity.id,
+              userId: uid,
+              provider: "PLATFORM" as const,
+              status: "SENT" as const,
+            })),
+            skipDuplicates: true,
+          })
+
+          if (notifyWhatsapp) {
+            await tx.activityRecipient.createMany({
+              data: recipientUserIds.map((uid) => ({
+                activityId: activity.id,
+                userId: uid,
+                provider: "WHATSAPP" as const,
+                status: "PENDING" as const,
+              })),
+              skipDuplicates: true,
+            })
+          }
+        }
+
+        return activity
+      })
+
+      createdActivities.push({ id: result.id, classId })
+
+      // SQS (best-effort)
+      if (sendToParents && notifyWhatsapp && recipientUserIds.length > 0) {
+        const queueUrl = process.env.SQS_WHATSAPP_QUEUE_URL
+        if (queueUrl) {
+          const jobs: WhatsappJob[] = recipientUserIds.map((recipientUserId) => ({
+            version: 1,
+            type: "WHATSAPP_ACTIVITY",
+            announcementId: result.id,
+            schoolId,
+            schoolName: school?.name ?? null,
+            createdById: userId,
+            recipientUserId,
+            recipientPhone: recipientPhoneMap.get(recipientUserId) ?? null,
+            audienceType: "CLASS",
+            classId,
+            studentId: null,
+            category: "EVENT",
+            title: title.trim(),
+            content: description.trim(),
+            allowReplies: false,
+            notifyViaWhatsapp: true as const,
+            createdAt: new Date().toISOString(),
+          }))
+
+          try {
+            await sendWhatsappJobsBatch(queueUrl, jobs)
+          } catch (err) {
+            console.error(`[SQS] Falha ao publicar jobs. classId=${classId}`, err)
+          }
+        }
+      }
+    }
+
+    return {
+      createdCount: createdActivities.length,
+      activities: createdActivities,
+    }
+  },
+
+  async listForSchool(schoolId: string, filters?: { startDate?: string; endDate?: string }) {
+    const dateFilter = filters?.startDate && filters?.endDate
+      ? { dueDate: { gte: new Date(filters.startDate), lte: new Date(filters.endDate), not: null } }
+      : {}
+
     const activities = await prisma.activity.findMany({
-      where: { schoolId, teacherId },
+      where: { schoolId, ...dateFilter },
+      include: {
+        teacher: { include: { user: { select: { name: true } } } },
+        class: { select: { id: true, name: true, grade: true } },
+        subject: { select: { id: true, name: true } },
+        _count: { select: { recipients: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    return Promise.all(
+      activities.map(async (a) => {
+        const readCount = a.sendToParents
+          ? await prisma.activityRecipient.count({
+              where: { activityId: a.id, provider: "PLATFORM", readAt: { not: null } },
+            })
+          : 0
+
+        return {
+          id: a.id,
+          title: a.title,
+          description: a.description,
+          type: a.type,
+          dueDate: a.dueDate,
+          maxScore: a.maxScore,
+          sendToParents: a.sendToParents,
+          notifyWhatsapp: a.notifyWhatsapp,
+          aiGenerated: a.aiGenerated,
+          publishedAt: a.publishedAt,
+          createdAt: a.createdAt,
+          class: a.class,
+          subject: a.subject,
+          teacherName: a.teacher?.user?.name ?? "Secretaria",
+          totalRecipients: a._count.recipients,
+          readCount,
+        }
+      })
+    )
+  },
+
+  async listForTeacher(schoolId: string, teacherId: string, filters?: { startDate?: string; endDate?: string }) {
+    const dateFilter = filters?.startDate && filters?.endDate
+      ? { dueDate: { gte: new Date(filters.startDate), lte: new Date(filters.endDate), not: null } }
+      : {}
+
+    const activities = await prisma.activity.findMany({
+      where: { schoolId, teacherId, ...dateFilter },
       include: {
         class: { select: { id: true, name: true, grade: true } },
         subject: { select: { id: true, name: true } },
@@ -267,7 +469,7 @@ export const AgendaService = {
       aiGenerated: activity.aiGenerated,
       publishedAt: activity.publishedAt,
       createdAt: activity.createdAt,
-      teacher: activity.teacher.user
+      teacher: activity.teacher?.user
         ? { id: activity.teacher.user.id, name: activity.teacher.user.name }
         : null,
       class: activity.class,
@@ -281,7 +483,7 @@ export const AgendaService = {
     }
   },
 
-  async listForParent(schoolId: string, parentUserId: string) {
+  async listForParent(schoolId: string, parentUserId: string, filters?: { startDate?: string; endDate?: string }) {
     // Buscar filhos do pai
     const parent = await prisma.parent.findFirst({
       where: { userId: parentUserId, schoolId },
@@ -308,10 +510,15 @@ export const AgendaService = {
 
     // Buscar todas as atividades das turmas dos filhos
     // sendToParents controla apenas notificação, não visibilidade
+    const dateFilter = filters?.startDate && filters?.endDate
+      ? { dueDate: { gte: new Date(filters.startDate), lte: new Date(filters.endDate), not: null } }
+      : {}
+
     const activities = await prisma.activity.findMany({
       where: {
         schoolId,
         classId: { in: classIds },
+        ...dateFilter,
       },
       include: {
         teacher: {
@@ -336,7 +543,7 @@ export const AgendaService = {
       dueDate: a.dueDate,
       publishedAt: a.publishedAt,
       createdAt: a.createdAt,
-      teacherName: a.teacher.user?.name ?? "Professor",
+      teacherName: a.teacher?.user?.name ?? "Secretaria",
       class: a.class,
       subject: a.subject,
       readAt: a.recipients[0]?.readAt ?? null,

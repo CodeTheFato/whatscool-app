@@ -67,12 +67,12 @@ const TYPE_CONFIG = {
   },
 }
 
-interface AgendaDetailDrawerProps {
+interface ActivityDetailDrawerProps {
   activityId: string | null
   onClose: () => void
 }
 
-export default function AgendaDetailDrawer({ activityId, onClose }: AgendaDetailDrawerProps) {
+export default function ActivityDetailDrawer({ activityId, onClose }: ActivityDetailDrawerProps) {
   const [activity, setActivity] = useState<ActivityDetail | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -85,7 +85,7 @@ export default function AgendaDetailDrawer({ activityId, onClose }: AgendaDetail
     async function load() {
       setIsLoading(true)
       try {
-        const res = await fetch(`/api/agenda/${activityId}`)
+        const res = await fetch(`/api/activities/${activityId}`)
         if (res.ok) {
           setActivity(await res.json())
         }

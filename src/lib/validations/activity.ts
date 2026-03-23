@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-export const agendaFormSchema = z.object({
+export const activityFormSchema = z.object({
   type: z.enum(["HOMEWORK", "EVENT"]),
   classId: z.string().min(1, "Turma é obrigatória"),
   subjectId: z.string().optional().nullable(),
@@ -13,7 +13,7 @@ export const agendaFormSchema = z.object({
   aiGenerated: z.boolean().default(false),
 })
 
-export type AgendaFormValues = z.infer<typeof agendaFormSchema>
+export type ActivityFormValues = z.infer<typeof activityFormSchema>
 
 export const aiGenerateSchema = z.object({
   subject: z.string().min(1, "Disciplina é obrigatória"),

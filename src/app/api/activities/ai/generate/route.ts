@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { requireRole, handleApiError, success, validateBody } from "@/lib/api"
 import { AIService } from "@/lib/services/ai.service"
-import { aiGenerateSchema } from "@/lib/validations/agenda"
+import { aiGenerateSchema } from "@/lib/validations/activity"
 
 export async function POST(request: NextRequest) {
   try {

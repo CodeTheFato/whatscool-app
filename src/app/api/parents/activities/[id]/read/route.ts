@@ -1,5 +1,5 @@
 import { requireRole, handleApiError, success } from "@/lib/api"
-import { AgendaService } from "@/lib/services/agenda.service"
+import { ActivityService } from "@/lib/services/activity.service"
 
 export async function PATCH(
   _request: Request,
@@ -8,7 +8,7 @@ export async function PATCH(
   try {
     const user = await requireRole(["PARENT"])
     const { id } = await params
-    const result = await AgendaService.markRead(id, user.id)
+    const result = await ActivityService.markRead(id, user.id)
     return success(result)
   } catch (error) {
     return handleApiError(error, "Erro ao marcar como lido")

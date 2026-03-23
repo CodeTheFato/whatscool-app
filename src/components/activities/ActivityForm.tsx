@@ -23,9 +23,8 @@ import {
   BookOpen,
   CalendarDays,
   Smartphone,
-  Users,
 } from "lucide-react"
-import AgendaAIPanel from "./AgendaAIPanel"
+import ActivityAIPanel from "./ActivityAIPanel"
 
 interface ClassOption {
   id: string
@@ -38,15 +37,17 @@ interface SubjectOption {
   name: string
 }
 
-interface AgendaFormProps {
+interface ActivityFormProps {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  initialDate?: string
+  eventOnly?: boolean
 }
 
-export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps) {
-  const [type, setType] = useState<"HOMEWORK" | "EVENT">("HOMEWORK")
-  const [classId, setClassId] = useState("")
+export default function ActivityForm({ open, onClose, onSuccess, initialDate, eventOnly = false }: ActivityFormProps) {
+  const [type, setType] = useState<"HOMEWORK" | "EVENT">(eventOnly ? "EVENT" : "HOMEWORK")
+  const [classId, setClassId] = useState(eventOnly ? "__ALL__" : "")
   const [subjectId, setSubjectId] = useState("")
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -65,6 +66,7 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
 
   useEffect(() => {
     if (!open) return
+    if (initialDate) setDueDate(initialDate)
     async function loadData() {
       setIsLoading(true)
       try {
@@ -105,8 +107,8 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
   }, [open])
 
   const resetForm = () => {
-    setType("HOMEWORK")
-    setClassId("")
+    setType(eventOnly ? "EVENT" : "HOMEWORK")
+    setClassId(eventOnly ? "__ALL__" : "")
     setSubjectId("")
     setTitle("")
     setDescription("")
@@ -128,7 +130,7 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
   const selectedSubject = subjects.find((s) => s.id === subjectId)
 
   const handleSubmit = async () => {
-    if (!classId) {
+    if (!eventOnly && !classId) {
       setError("Selecione uma turma")
       return
     }
@@ -145,21 +147,32 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
     setError("")
 
     try {
-      const response = await fetch("/api/agenda", {
+      const body = eventOnly
+        ? {
+            title: title.trim(),
+            description: description.trim(),
+            dueDate: dueDate || null,
+            sendToParents,
+            notifyWhatsapp: sendToParents && notifyWhatsapp,
+            classIds: classId === "__ALL__" ? undefined : [classId],
+          }
+        : {
+            type,
+            classId,
+            subjectId: subjectId || null,
+            title: title.trim(),
+            description: description.trim(),
+            dueDate: dueDate || null,
+            maxScore: maxScore ? parseFloat(maxScore) : null,
+            sendToParents,
+            notifyWhatsapp: sendToParents && notifyWhatsapp,
+            aiGenerated,
+          }
+
+      const response = await fetch("/api/activities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          classId,
-          subjectId: subjectId || null,
-          title: title.trim(),
-          description: description.trim(),
-          dueDate: dueDate || null,
-          maxScore: maxScore ? parseFloat(maxScore) : null,
-          sendToParents,
-          notifyWhatsapp: sendToParents && notifyWhatsapp,
-          aiGenerated,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -197,12 +210,16 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
         {/* Header */}
         <SheetHeader className="px-6 pt-6 pb-0">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-md">
-              <BookOpen className="h-5 w-5 text-white" />
+            <div className={`h-10 w-10 rounded-xl flex items-center justify-center shadow-md ${
+              eventOnly
+                ? "bg-gradient-to-br from-purple-500 to-pink-500"
+                : "bg-gradient-to-br from-amber-500 to-orange-500"
+            }`}>
+              {eventOnly ? <CalendarDays className="h-5 w-5 text-white" /> : <BookOpen className="h-5 w-5 text-white" />}
             </div>
             <div>
-              <SheetTitle className="text-lg">Nova Atividade</SheetTitle>
-              <SheetDescription>Crie uma lição ou evento</SheetDescription>
+              <SheetTitle className="text-lg">{eventOnly ? "Novo Evento" : "Nova Atividade"}</SheetTitle>
+              <SheetDescription>{eventOnly ? "Crie um evento escolar" : "Crie uma lição ou evento"}</SheetDescription>
             </div>
           </div>
         </SheetHeader>
@@ -216,53 +233,56 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
         ) : (
           <div className="px-6 space-y-5 pb-4">
             {/* Tipo */}
-            <div>
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Tipo
-              </Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {TYPE_OPTIONS.map((opt) => {
-                  const Icon = opt.icon
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setType(opt.value)}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200 ${
-                        type === opt.value
-                          ? "border-amber-400 bg-amber-50 shadow-sm"
-                          : "border-transparent bg-gray-50 hover:bg-gray-100"
-                      }`}
-                    >
-                      <Icon
-                        className={`h-5 w-5 ${
-                          type === opt.value ? "text-amber-600" : "text-gray-400"
-                        }`}
-                      />
-                      <span
-                        className={`text-xs font-medium ${
-                          type === opt.value ? "text-amber-700" : "text-gray-500"
-                        }`}
-                      >
-                        {opt.label}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Turma e Disciplina */}
-            <div className="grid grid-cols-2 gap-3">
+            {!eventOnly && (
               <div>
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Turma *
+                  Tipo
+                </Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {TYPE_OPTIONS.map((opt) => {
+                    const Icon = opt.icon
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setType(opt.value)}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200 ${
+                          type === opt.value
+                            ? "border-amber-400 bg-amber-50 shadow-sm"
+                            : "border-transparent bg-gray-50 hover:bg-gray-100"
+                        }`}
+                      >
+                        <Icon
+                          className={`h-5 w-5 ${
+                            type === opt.value ? "text-amber-600" : "text-gray-400"
+                          }`}
+                        />
+                        <span
+                          className={`text-xs font-medium ${
+                            type === opt.value ? "text-amber-700" : "text-gray-500"
+                          }`}
+                        >
+                          {opt.label}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Turma e Disciplina */}
+            {eventOnly ? (
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Turma
                 </Label>
                 <Select value={classId} onValueChange={setClassId}>
                   <SelectTrigger className="mt-1.5 h-10">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__ALL__">Todas as turmas</SelectItem>
                     {classes.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name} - {c.grade}
@@ -271,25 +291,45 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
                   </SelectContent>
                 </Select>
               </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Turma *
+                  </Label>
+                  <Select value={classId} onValueChange={setClassId}>
+                    <SelectTrigger className="mt-1.5 h-10 w-full">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} - {c.grade}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Disciplina
-                </Label>
-                <Select value={subjectId} onValueChange={setSubjectId}>
-                  <SelectTrigger className="mt-1.5 h-10">
-                    <SelectValue placeholder="Opcional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div>
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Disciplina
+                  </Label>
+                  <Select value={subjectId} onValueChange={setSubjectId}>
+                    <SelectTrigger className="mt-1.5 h-10 w-full">
+                      <SelectValue placeholder="Opcional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* AI Panel */}
             {type === "HOMEWORK" && (
@@ -311,7 +351,7 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
                     </div>
                   </button>
                 ) : (
-                  <AgendaAIPanel
+                  <ActivityAIPanel
                     subjectName={selectedSubject?.name || ""}
                     gradeName={selectedClass?.grade || ""}
                     onGenerated={handleAIGenerated}
@@ -396,35 +436,21 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
 
             <Separator />
 
-            {/* Toggles */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Enviar para os pais</p>
-                    <p className="text-xs text-muted-foreground">
-                      Notificar responsáveis da turma
-                    </p>
-                  </div>
+            {/* Notificação */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Smartphone className="h-4 w-4 text-green-600" />
+                <div>
+                  <p className="text-sm font-medium">Notificar responsáveis via WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">
+                    Enviar mensagem para os pais no WhatsApp
+                  </p>
                 </div>
-                <Switch checked={sendToParents} onCheckedChange={setSendToParents} />
               </div>
-
-              {sendToParents && (
-                <div className="flex items-center justify-between pl-7">
-                  <div className="flex items-center gap-2.5">
-                    <Smartphone className="h-4 w-4 text-green-600" />
-                    <div>
-                      <p className="text-sm font-medium">Notificar via WhatsApp</p>
-                      <p className="text-xs text-muted-foreground">
-                        Enviar mensagem no WhatsApp
-                      </p>
-                    </div>
-                  </div>
-                  <Switch checked={notifyWhatsapp} onCheckedChange={setNotifyWhatsapp} />
-                </div>
-              )}
+              <Switch checked={notifyWhatsapp} onCheckedChange={(v) => {
+                setNotifyWhatsapp(v)
+                setSendToParents(v)
+              }} />
             </div>
 
             {/* Error */}
@@ -441,7 +467,11 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
           <Button
             onClick={handleSubmit}
             disabled={isSending || isLoading}
-            className="w-full gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg h-11 text-base font-semibold"
+            className={`w-full gap-2 shadow-lg h-11 text-base font-semibold ${
+              eventOnly
+                ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+            }`}
           >
             {isSending ? (
               <>
@@ -451,7 +481,7 @@ export default function AgendaForm({ open, onClose, onSuccess }: AgendaFormProps
             ) : (
               <>
                 <Send className="h-4 w-4" />
-                Criar Atividade
+                {eventOnly ? "Criar Evento" : "Criar Atividade"}
               </>
             )}
           </Button>

@@ -16,6 +16,7 @@ import {
   BarChart3,
   Settings,
   Calendar,
+  CalendarDays,
 } from "lucide-react"
 
 import {
@@ -49,6 +50,7 @@ const iconMap = {
   BarChart3,
   Settings,
   Calendar,
+  CalendarDays,
 }
 
 const roleColors: Record<string, string> = {
