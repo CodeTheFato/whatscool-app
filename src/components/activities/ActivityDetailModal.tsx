@@ -14,7 +14,6 @@ import {
   BookOpen,
   CalendarDays,
   Sparkles,
-  CheckCheck,
   Clock,
   Users,
   Loader2,
@@ -291,8 +290,8 @@ export default function ActivityDetailDrawer({ activityId, onClose }: ActivityDe
                       >
                         <span className="text-sm font-medium text-gray-700">{r.user.name}</span>
                         {r.readAt ? (
-                          <span className="flex items-center gap-1.5 text-emerald-600 text-xs font-medium">
-                            <CheckCheck className="h-3.5 w-3.5" />
+                          <span className="flex items-center gap-1.5 text-blue-600 text-xs font-medium">
+                            <Eye className="h-3.5 w-3.5" />
                             {new Date(r.readAt).toLocaleDateString("pt-BR", {
                               day: "2-digit",
                               month: "short",
@@ -303,7 +302,7 @@ export default function ActivityDetailDrawer({ activityId, onClose }: ActivityDe
                         ) : (
                           <span className="flex items-center gap-1.5 text-gray-400 text-xs">
                             <EyeOff className="h-3.5 w-3.5" />
-                            Não lido
+                            Pendente
                           </span>
                         )}
                       </div>

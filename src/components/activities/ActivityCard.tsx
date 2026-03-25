@@ -10,7 +10,6 @@ import {
   Sparkles,
   Smartphone,
   Monitor,
-  CheckCheck,
   Eye,
 } from "lucide-react"
 
@@ -176,7 +175,7 @@ export default function ActivityCard({ item, showStats, isSelected, onClick }: A
               {showStats && item.sendToParents && (
                 <span className="flex items-center gap-1.5">
                   <Eye className="h-3.5 w-3.5" />
-                  {item.readCount ?? 0}/{item.totalRecipients ?? 0} leram
+                  {item.readCount ?? 0}/{item.totalRecipients ?? 0} visualizaram
                 </span>
               )}
 
@@ -191,9 +190,9 @@ export default function ActivityCard({ item, showStats, isSelected, onClick }: A
               </span>
 
               {item.readAt && (
-                <span className="flex items-center gap-1 text-emerald-600">
-                  <CheckCheck className="h-3 w-3" />
-                  Lido
+                <span className="flex items-center gap-1 text-blue-600">
+                  <Eye className="h-3 w-3" />
+                  Visualizado
                 </span>
               )}
 

@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { Lock, Send } from "lucide-react"
+import { CheckCheck, Lock, Send } from "lucide-react"
 import type { AnnouncementItem, CategoryInfo } from "./types"
 
 interface AnnouncementReplyPanelProps {
@@ -12,6 +12,8 @@ interface AnnouncementReplyPanelProps {
   onReplyTextChange: (text: string) => void
   isSending: boolean
   onSendReply: () => void
+  onConfirm?: () => void
+  isConfirming?: boolean
 }
 
 export default function AnnouncementReplyPanel({
@@ -21,6 +23,8 @@ export default function AnnouncementReplyPanel({
   onReplyTextChange,
   isSending,
   onSendReply,
+  onConfirm,
+  isConfirming,
 }: AnnouncementReplyPanelProps) {
   const CatIcon = catInfo.icon
 
@@ -48,6 +52,48 @@ export default function AnnouncementReplyPanel({
         <p className="text-sm whitespace-pre-wrap leading-relaxed text-gray-700 mb-6">
           {announcement.content}
         </p>
+
+        {/* Confirmation section */}
+        {announcement.requiresConfirmation && !announcement.confirmedAt && (
+          <div className="mb-4">
+            <Button
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/20"
+              onClick={onConfirm}
+              disabled={isConfirming}
+            >
+              {isConfirming ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Confirmando...
+                </>
+              ) : (
+                <>
+                  <CheckCheck className="h-4 w-4 mr-2" />
+                  Confirmar Leitura
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {announcement.requiresConfirmation && announcement.confirmedAt && (
+          <div className="mb-4 flex items-center gap-3 p-4 rounded-xl bg-green-50 border-2 border-green-200">
+            <div className="h-10 w-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+              <CheckCheck className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-green-700">Leitura confirmada</p>
+              <p className="text-xs text-green-600">
+                {new Date(announcement.confirmedAt).toLocaleDateString("pt-BR", {
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          </div>
+        )}
 
         <Separator className="mb-4" />
 

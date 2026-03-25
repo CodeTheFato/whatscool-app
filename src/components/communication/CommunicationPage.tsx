@@ -99,6 +99,10 @@ export default function CommunicationPage({
               isSendingAnnouncementReply={comm.isSendingAnnouncementReply}
               onSendAnnouncementReply={comm.handleReplyToAnnouncement}
               onNewCommunication={onNewCommunication}
+              onConfirm={comm.handleConfirm}
+              isConfirming={comm.isConfirming}
+              recipientDetails={comm.recipientDetails}
+              isLoadingRecipients={comm.isLoadingRecipients}
             />
           </TabsContent>
 

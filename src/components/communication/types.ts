@@ -24,6 +24,9 @@ export interface CommunicationConfig {
     conversationPoll: (id: string) => string
     badges?: string
     announcementReply?: (id: string) => string
+    announcementMarkRead?: (id: string) => string
+    announcementConfirm?: (id: string) => string
+    announcementRecipients?: (id: string) => string
   }
 }
 
@@ -63,13 +66,17 @@ export interface AnnouncementItem {
   // Staff-only
   totalRecipients?: number
   totalConversations?: number
+  totalRead?: number
+  totalConfirmed?: number
   // Parent-only
   status?: string
   readAt?: string | null
+  confirmedAt?: string | null
   deliveredAt?: string | null
   unread?: boolean
   // Shared
   allowReplies?: boolean
+  requiresConfirmation?: boolean
   notifyViaWhatsapp?: boolean
   provider?: string
 }
@@ -80,6 +87,16 @@ export interface CategoryInfo {
   icon: LucideIcon
   color: string
   bg: string
+}
+
+// ==================== RECIPIENT DETAIL ====================
+export interface RecipientDetail {
+  userId: string
+  name: string
+  avatar: string | null
+  status: string
+  readAt: string | null
+  confirmedAt: string | null
 }
 
 // ==================== HOOK RETURN ====================
@@ -124,6 +141,14 @@ export interface UseCommunicationReturn {
 
   // Scroll ref
   messagesEndRef: React.RefObject<HTMLDivElement | null>
+
+  // Confirmation
+  handleConfirm: (announcementId: string) => Promise<void>
+  isConfirming: boolean
+
+  // Staff recipient details
+  recipientDetails: RecipientDetail[] | null
+  isLoadingRecipients: boolean
 
   // Refresh
   refreshAfterAction: () => Promise<void>

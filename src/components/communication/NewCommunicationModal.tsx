@@ -81,6 +81,7 @@ interface NewCommunicationModalProps {
     title?: string
     content: string
     allowReplies: boolean
+    requiresConfirmation: boolean
     notifyViaWhatsapp: boolean
   }) => Promise<void>
   onCreateConversation: (payload: {
@@ -140,6 +141,7 @@ export default function NewCommunicationModal({
   // Comunicado-only options
   const [sendViaWhatsApp, setSendViaWhatsApp] = useState<boolean>(true)
   const [allowReplies, setAllowReplies] = useState<boolean>(true)
+  const [requiresConfirmation, setRequiresConfirmation] = useState<boolean>(false)
 
   // AI composer
   const [aiOpen, setAiOpen] = useState(false)
@@ -162,6 +164,7 @@ export default function NewCommunicationModal({
     setSelectedParentIds([])
     setSendViaWhatsApp(true)
     setAllowReplies(true)
+    setRequiresConfirmation(false)
     setAiOpen(false)
     setAiPrompt("")
     setAiTone(null)
@@ -220,6 +223,7 @@ export default function NewCommunicationModal({
           title: subject || undefined,
           content: message,
           allowReplies,
+          requiresConfirmation,
           notifyViaWhatsapp: sendViaWhatsApp,
         })
       } else {
@@ -885,6 +889,22 @@ export default function NewCommunicationModal({
                   </div>
                   <Switch checked={allowReplies} onCheckedChange={setAllowReplies} />
                 </div>
+
+                {/* Requires confirmation toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCheck className={`h-4 w-4 ${requiresConfirmation ? "text-blue-600" : "text-muted-foreground"}`} />
+                    <div>
+                      <p className="text-sm font-medium">Exigir confirmação</p>
+                      <p className="text-xs text-muted-foreground">
+                        {requiresConfirmation
+                          ? "Pais devem confirmar leitura manualmente"
+                          : "Apenas visualização — sem confirmação obrigatória"}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch checked={requiresConfirmation} onCheckedChange={setRequiresConfirmation} />
+                </div>
               </div>
             </>
           )}
@@ -917,6 +937,12 @@ export default function NewCommunicationModal({
                     <li className="flex items-center gap-1.5">
                       <span className="h-1 w-1 rounded-full bg-gray-400 flex-shrink-0" />
                       Somente leitura
+                    </li>
+                  )}
+                  {requiresConfirmation && (
+                    <li className="flex items-center gap-1.5 text-blue-600">
+                      <span className="h-1 w-1 rounded-full bg-blue-500 flex-shrink-0" />
+                      Pais devem confirmar leitura
                     </li>
                   )}
                 </>

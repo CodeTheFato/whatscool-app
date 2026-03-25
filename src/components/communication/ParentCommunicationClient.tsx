@@ -19,6 +19,8 @@ const config: CommunicationConfig = {
     conversationMessages: (id) => `/api/parents/conversations/${id}`,
     conversationPoll: (id) => `/api/parents/conversations/${id}/poll`,
     announcementReply: (id) => `/api/announcements/${id}/reply`,
+    announcementMarkRead: (id) => `/api/announcements/${id}/read`,
+    announcementConfirm: (id) => `/api/announcements/${id}/confirm`,
   },
 }
 

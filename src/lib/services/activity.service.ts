@@ -355,39 +355,37 @@ export const ActivityService = {
         teacher: { include: { user: { select: { name: true } } } },
         class: { select: { id: true, name: true, grade: true } },
         subject: { select: { id: true, name: true } },
-        _count: { select: { recipients: true } },
+        recipients: {
+          where: { provider: "PLATFORM" },
+          select: { readAt: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     })
 
-    return Promise.all(
-      activities.map(async (a) => {
-        const readCount = a.sendToParents
-          ? await prisma.activityRecipient.count({
-              where: { activityId: a.id, provider: "PLATFORM", readAt: { not: null } },
-            })
-          : 0
+    return activities.map((a) => {
+      const totalRecipients = a.recipients.length
+      const readCount = a.recipients.filter((r) => r.readAt !== null).length
 
-        return {
-          id: a.id,
-          title: a.title,
-          description: a.description,
-          type: a.type,
-          dueDate: a.dueDate,
-          maxScore: a.maxScore,
-          sendToParents: a.sendToParents,
-          notifyWhatsapp: a.notifyWhatsapp,
-          aiGenerated: a.aiGenerated,
-          publishedAt: a.publishedAt,
-          createdAt: a.createdAt,
-          class: a.class,
-          subject: a.subject,
-          teacherName: a.teacher?.user?.name ?? "Secretaria",
-          totalRecipients: a._count.recipients,
-          readCount,
-        }
-      })
-    )
+      return {
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        type: a.type,
+        dueDate: a.dueDate,
+        maxScore: a.maxScore,
+        sendToParents: a.sendToParents,
+        notifyWhatsapp: a.notifyWhatsapp,
+        aiGenerated: a.aiGenerated,
+        publishedAt: a.publishedAt,
+        createdAt: a.createdAt,
+        class: a.class,
+        subject: a.subject,
+        teacherName: a.teacher?.user?.name ?? "Secretaria",
+        totalRecipients,
+        readCount,
+      }
+    })
   },
 
   async listForTeacher(schoolId: string, teacherId: string, filters?: { startDate?: string; endDate?: string }) {
@@ -400,38 +398,36 @@ export const ActivityService = {
       include: {
         class: { select: { id: true, name: true, grade: true } },
         subject: { select: { id: true, name: true } },
-        _count: { select: { recipients: true } },
+        recipients: {
+          where: { provider: "PLATFORM" },
+          select: { readAt: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     })
 
-    return Promise.all(
-      activities.map(async (a) => {
-        const readCount = a.sendToParents
-          ? await prisma.activityRecipient.count({
-              where: { activityId: a.id, provider: "PLATFORM", readAt: { not: null } },
-            })
-          : 0
+    return activities.map((a) => {
+      const totalRecipients = a.recipients.length
+      const readCount = a.recipients.filter((r) => r.readAt !== null).length
 
-        return {
-          id: a.id,
-          title: a.title,
-          description: a.description,
-          type: a.type,
-          dueDate: a.dueDate,
-          maxScore: a.maxScore,
-          sendToParents: a.sendToParents,
-          notifyWhatsapp: a.notifyWhatsapp,
-          aiGenerated: a.aiGenerated,
-          publishedAt: a.publishedAt,
-          createdAt: a.createdAt,
-          class: a.class,
-          subject: a.subject,
-          totalRecipients: a._count.recipients,
-          readCount,
-        }
-      })
-    )
+      return {
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        type: a.type,
+        dueDate: a.dueDate,
+        maxScore: a.maxScore,
+        sendToParents: a.sendToParents,
+        notifyWhatsapp: a.notifyWhatsapp,
+        aiGenerated: a.aiGenerated,
+        publishedAt: a.publishedAt,
+        createdAt: a.createdAt,
+        class: a.class,
+        subject: a.subject,
+        totalRecipients,
+        readCount,
+      }
+    })
   },
 
   async getById(schoolId: string, id: string) {

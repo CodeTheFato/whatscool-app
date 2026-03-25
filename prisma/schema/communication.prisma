@@ -29,8 +29,9 @@ model Announcement {
   studentId         String?                  @map("student_id")
   title             String
   content           String                   @db.Text
-  allowReplies      Boolean                  @default(true) @map("allow_replies")
-  notifyViaWhatsapp Boolean                  @default(false) @map("notify_via_whatsapp")
+  allowReplies          Boolean                  @default(true) @map("allow_replies")
+  requiresConfirmation  Boolean                  @default(false) @map("requires_confirmation")
+  notifyViaWhatsapp     Boolean                  @default(false) @map("notify_via_whatsapp")
   publishedAt       DateTime?                @map("published_at")
   createdAt         DateTime                 @default(now()) @map("created_at")
   updatedAt         DateTime                 @updatedAt @map("updated_at")
@@ -64,6 +65,7 @@ enum DeliveryStatus {
   SENT // Enviado ao provedor
   DELIVERED // Confirmação de entrega ao dispositivo
   READ // Lido pelo destinatário
+  CONFIRMED // Leitura confirmada manualmente pelo destinatário
   FAILED // Falha no envio
 }
 
@@ -77,6 +79,7 @@ model AnnouncementRecipient {
   sentAt            DateTime?        @map("sent_at")
   deliveredAt       DateTime?        @map("delivered_at")
   readAt            DateTime?        @map("read_at")
+  confirmedAt       DateTime?        @map("confirmed_at")
   // Campos para tracking de provedor externo (WhatsApp futuro)
   providerMessageId String?          @map("provider_message_id")
   errorCode         String?          @map("error_code")

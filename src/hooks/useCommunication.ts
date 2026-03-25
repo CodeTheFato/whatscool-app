@@ -7,6 +7,7 @@ import type {
   AnnouncementItem,
   Conversation,
   ChatMessage,
+  RecipientDetail,
   UseCommunicationReturn,
 } from "@/components/communication/types"
 
@@ -150,6 +151,13 @@ export function useCommunication(config: CommunicationConfig): UseCommunicationR
   // Badges
   const [chatUnreadCount, setChatUnreadCount] = useState(0)
   const [announcementUnreadCount, setAnnouncementUnreadCount] = useState(0)
+
+  // Confirmation
+  const [isConfirming, setIsConfirming] = useState(false)
+
+  // Staff recipient details
+  const [recipientDetails, setRecipientDetails] = useState<RecipientDetail[] | null>(null)
+  const [isLoadingRecipients, setIsLoadingRecipients] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -358,6 +366,82 @@ export function useCommunication(config: CommunicationConfig): UseCommunicationR
     fetchConversations,
   ])
 
+  // ==================== AUTO MARK READ + CONFIRM ====================
+
+  const handleSelectAnnouncement = useCallback(
+    async (ann: AnnouncementItem | null) => {
+      setSelectedAnnouncement(ann)
+      setRecipientDetails(null)
+
+      if (!ann) return
+
+      // Parent: auto-mark as read when opening unread announcement
+      if (!isStaff && ann.unread && config.endpoints.announcementMarkRead) {
+        try {
+          await fetch(config.endpoints.announcementMarkRead(ann.id), { method: "PATCH" })
+          // Optimistic update
+          setAnnouncements((prev) =>
+            prev.map((a) =>
+              a.id === ann.id ? { ...a, readAt: new Date().toISOString(), unread: false, status: "READ" } : a
+            )
+          )
+          setSelectedAnnouncement((prev) =>
+            prev?.id === ann.id ? { ...prev, readAt: new Date().toISOString(), unread: false, status: "READ" } : prev
+          )
+        } catch {
+          console.error("Erro ao marcar como lido")
+        }
+      }
+
+      // Staff: fetch recipient details
+      if (isStaff && config.endpoints.announcementRecipients) {
+        setIsLoadingRecipients(true)
+        try {
+          const response = await fetch(config.endpoints.announcementRecipients(ann.id))
+          if (response.ok) {
+            const data = await response.json()
+            setRecipientDetails(data.recipients)
+          }
+        } catch {
+          console.error("Erro ao buscar destinatários")
+        } finally {
+          setIsLoadingRecipients(false)
+        }
+      }
+    },
+    [isStaff, config.endpoints]
+  )
+
+  const handleConfirm = useCallback(
+    async (announcementId: string) => {
+      if (!config.endpoints.announcementConfirm) return
+      setIsConfirming(true)
+      try {
+        const response = await fetch(config.endpoints.announcementConfirm(announcementId), { method: "PATCH" })
+        if (!response.ok) {
+          const err = await response.json()
+          throw new Error(err.error || "Erro ao confirmar")
+        }
+        // Optimistic update
+        const now = new Date().toISOString()
+        setAnnouncements((prev) =>
+          prev.map((a) =>
+            a.id === announcementId ? { ...a, confirmedAt: now, status: "CONFIRMED" } : a
+          )
+        )
+        setSelectedAnnouncement((prev) =>
+          prev?.id === announcementId ? { ...prev, confirmedAt: now, status: "CONFIRMED" } : prev
+        )
+        toast.success("Leitura confirmada!")
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Erro ao confirmar leitura")
+      } finally {
+        setIsConfirming(false)
+      }
+    },
+    [config.endpoints]
+  )
+
   // ==================== POLLING ====================
 
   const pollForNewMessages = useCallback(
@@ -472,7 +556,7 @@ export function useCommunication(config: CommunicationConfig): UseCommunicationR
     announcements,
     isLoadingAnnouncements,
     selectedAnnouncement,
-    setSelectedAnnouncement,
+    setSelectedAnnouncement: handleSelectAnnouncement,
     announcementReply,
     setAnnouncementReply,
     isSendingAnnouncementReply,
@@ -493,6 +577,10 @@ export function useCommunication(config: CommunicationConfig): UseCommunicationR
     setUnreadOnly,
     chatUnreadCount,
     announcementUnreadCount,
+    handleConfirm,
+    isConfirming,
+    recipientDetails,
+    isLoadingRecipients,
     messagesEndRef,
     refreshAfterAction,
     fetchAnnouncements,

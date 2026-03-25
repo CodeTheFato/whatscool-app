@@ -7,8 +7,9 @@ import { FilterBar, type FilterChip } from "@/components/ui/filter-bar"
 import { Megaphone, Plus, Search } from "lucide-react"
 import AnnouncementCard from "./AnnouncementCard"
 import AnnouncementReplyPanel from "./AnnouncementReplyPanel"
+import AnnouncementRecipientsPanel from "./AnnouncementRecipientsPanel"
 import { CATEGORIES, getCategoryInfo } from "./categories"
-import type { AnnouncementItem, CommunicationConfig } from "./types"
+import type { AnnouncementItem, CommunicationConfig, RecipientDetail } from "./types"
 
 interface AnnouncementsTabProps {
   config: CommunicationConfig
@@ -21,6 +22,10 @@ interface AnnouncementsTabProps {
   isSendingAnnouncementReply: boolean
   onSendAnnouncementReply: () => void
   onNewCommunication?: () => void
+  onConfirm?: (announcementId: string) => void
+  isConfirming?: boolean
+  recipientDetails?: RecipientDetail[] | null
+  isLoadingRecipients?: boolean
 }
 
 export default function AnnouncementsTab({
@@ -34,6 +39,10 @@ export default function AnnouncementsTab({
   isSendingAnnouncementReply,
   onSendAnnouncementReply,
   onNewCommunication,
+  onConfirm,
+  isConfirming,
+  recipientDetails,
+  isLoadingRecipients,
 }: AnnouncementsTabProps) {
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState<string>("ALL")
@@ -147,6 +156,8 @@ export default function AnnouncementsTab({
   }
 
   const showReplyPanel = config.canReplyToAnnouncement && selectedAnnouncement
+  const showRecipientsPanel = config.showAnnouncementStats && selectedAnnouncement
+  const showSidePanel = showReplyPanel || showRecipientsPanel
 
   return (
     <div className="space-y-4">
@@ -188,8 +199,8 @@ export default function AnnouncementsTab({
           </CardContent>
         </Card>
       ) : (
-        <div className={showReplyPanel ? "grid grid-cols-1 lg:grid-cols-5 gap-6" : ""}>
-          <div className={showReplyPanel ? "lg:col-span-3 space-y-4" : "space-y-4"}>
+        <div className={showSidePanel ? "grid grid-cols-1 lg:grid-cols-5 gap-6" : ""}>
+          <div className={showSidePanel ? "lg:col-span-3 space-y-4" : "space-y-4"}>
             {filtered.map((ann) => {
               const catInfo = getCategoryInfo(ann.category)
               return (
@@ -200,13 +211,10 @@ export default function AnnouncementsTab({
                   showStats={config.showAnnouncementStats}
                   showReadStatus={config.showAnnouncementReadStatus}
                   isSelected={selectedAnnouncement?.id === ann.id}
-                  onClick={
-                    config.canReplyToAnnouncement
-                      ? () =>
-                          onSelectAnnouncement(
-                            selectedAnnouncement?.id === ann.id ? null : ann
-                          )
-                      : undefined
+                  onClick={() =>
+                    onSelectAnnouncement(
+                      selectedAnnouncement?.id === ann.id ? null : ann
+                    )
                   }
                 />
               )
@@ -222,6 +230,19 @@ export default function AnnouncementsTab({
                 onReplyTextChange={onAnnouncementReplyChange}
                 isSending={isSendingAnnouncementReply}
                 onSendReply={onSendAnnouncementReply}
+                onConfirm={onConfirm ? () => onConfirm(selectedAnnouncement.id) : undefined}
+                isConfirming={isConfirming}
+              />
+            </div>
+          )}
+
+          {showRecipientsPanel && (
+            <div className="lg:col-span-2">
+              <AnnouncementRecipientsPanel
+                announcement={selectedAnnouncement}
+                categoryInfo={getCategoryInfo(selectedAnnouncement.category)}
+                recipients={recipientDetails ?? null}
+                isLoading={isLoadingRecipients ?? false}
               />
             </div>
           )}

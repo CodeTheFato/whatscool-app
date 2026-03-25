@@ -24,6 +24,7 @@ const staffConfigs: Record<"secretary" | "teacher", CommunicationConfig> = {
       conversationMessages: (id) => `/api/chat/conversations/${id}/messages`,
       conversationPoll: (id) => `/api/chat/conversations/${id}/poll`,
       badges: "/api/chat/conversations/badges",
+      announcementRecipients: (id) => `/api/announcements/${id}/recipients`,
     },
   },
   teacher: {
@@ -42,6 +43,7 @@ const staffConfigs: Record<"secretary" | "teacher", CommunicationConfig> = {
       conversationMessages: (id) => `/api/chat/conversations/${id}/messages`,
       conversationPoll: (id) => `/api/chat/conversations/${id}/poll`,
       badges: "/api/chat/conversations/badges",
+      announcementRecipients: (id) => `/api/announcements/${id}/recipients`,
     },
   },
 }
@@ -88,7 +90,7 @@ export default function StaffCommunicationClient({
           const count = data.stats?.recipientsCount ?? data.recipientCount ?? 0
           const providers = data.stats?.providers ?? ["PLATFORM"]
           toast.success("Comunicado publicado!", {
-            description: `${count} destinatário(s) notificados via ${providers.join(" + ")}.${payload.allowReplies ? " Conversas serão criadas quando responderem." : ""}`,
+            description: `${count} destinatário(s) notificados via ${providers.join(" + ")}.${payload.requiresConfirmation ? " Confirmação de leitura será exigida." : ""}`,
           })
           setShowModal(false)
           hookRef.current?.refreshAfterAction()

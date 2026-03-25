@@ -53,7 +53,7 @@ export default function ActivityForm({ open, onClose, onSuccess, initialDate, ev
   const [description, setDescription] = useState("")
   const [dueDate, setDueDate] = useState("")
   const [maxScore, setMaxScore] = useState("")
-  const [sendToParents, setSendToParents] = useState(false)
+  const [sendToParents, setSendToParents] = useState(true)
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false)
   const [aiGenerated, setAiGenerated] = useState(false)
   const [showAI, setShowAI] = useState(false)
@@ -114,7 +114,7 @@ export default function ActivityForm({ open, onClose, onSuccess, initialDate, ev
     setDescription("")
     setDueDate("")
     setMaxScore("")
-    setSendToParents(false)
+    setSendToParents(true)
     setNotifyWhatsapp(false)
     setAiGenerated(false)
     setShowAI(false)
@@ -447,10 +447,7 @@ export default function ActivityForm({ open, onClose, onSuccess, initialDate, ev
                   </p>
                 </div>
               </div>
-              <Switch checked={notifyWhatsapp} onCheckedChange={(v) => {
-                setNotifyWhatsapp(v)
-                setSendToParents(v)
-              }} />
+              <Switch checked={notifyWhatsapp} onCheckedChange={setNotifyWhatsapp} />
             </div>
 
             {/* Error */}

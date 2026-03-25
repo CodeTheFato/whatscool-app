@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import {
   Clock,
   Users,
-  Send,
+  Eye,
   MessageSquare,
   CheckCheck,
   Lock,
@@ -100,6 +100,16 @@ export default function AnnouncementCard({
                 </Badge>
               )}
 
+              {showStats && ann.requiresConfirmation && (
+                <Badge
+                  variant="secondary"
+                  className="bg-blue-50 text-blue-600 border-0 text-[10px] gap-1 font-medium"
+                >
+                  <CheckCheck className="h-2.5 w-2.5" />
+                  Exige confirmação
+                </Badge>
+              )}
+
               {ann.notifyViaWhatsapp ? (
                 <Badge
                   variant="secondary"
@@ -154,12 +164,18 @@ export default function AnnouncementCard({
                 <>
                   <span className="flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5" />
-                    {ann.totalRecipients} destinatario{ann.totalRecipients !== 1 ? "s" : ""}
+                    {ann.totalRecipients} destinatário{ann.totalRecipients !== 1 ? "s" : ""}
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    <Send className="h-3.5 w-3.5" />
-                    {ann.totalRecipients} enviado{ann.totalRecipients !== 1 ? "s" : ""}
+                  <span className={`flex items-center gap-1.5 ${(ann.totalRead ?? 0) > 0 ? "text-blue-600" : ""}`}>
+                    <Eye className="h-3.5 w-3.5" />
+                    {ann.totalRead ?? 0} visualiz{(ann.totalRead ?? 0) !== 1 ? "aram" : "ou"}
                   </span>
+                  {ann.requiresConfirmation && (
+                    <span className={`flex items-center gap-1.5 ${(ann.totalConfirmed ?? 0) > 0 ? "text-green-600 font-semibold" : ""}`}>
+                      <CheckCheck className="h-3.5 w-3.5" />
+                      {ann.totalConfirmed ?? 0} confirm{(ann.totalConfirmed ?? 0) !== 1 ? "aram" : "ou"}
+                    </span>
+                  )}
                   <span
                     className={`flex items-center gap-1.5 ${
                       ann.totalConversations && ann.totalConversations > 0
@@ -183,10 +199,16 @@ export default function AnnouncementCard({
                 })}
               </span>
 
-              {showReadStatus && ann.readAt && (
-                <span className="flex items-center gap-1 text-emerald-600">
+              {showReadStatus && ann.confirmedAt && (
+                <span className="flex items-center gap-1 text-green-600 font-semibold">
                   <CheckCheck className="h-3 w-3" />
-                  Lido
+                  Confirmado
+                </span>
+              )}
+              {showReadStatus && ann.readAt && !ann.confirmedAt && (
+                <span className="flex items-center gap-1 text-emerald-600">
+                  <Eye className="h-3 w-3" />
+                  Visualizado
                 </span>
               )}
             </div>

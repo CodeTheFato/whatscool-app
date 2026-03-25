@@ -14,6 +14,7 @@ interface CreateAnnouncementData {
   category: string
   notifyViaWhatsapp?: boolean
   allowReplies?: boolean
+  requiresConfirmation?: boolean
 }
 
 export const AnnouncementService = {
@@ -24,27 +25,40 @@ export const AnnouncementService = {
         creator: { select: { id: true, name: true, role: true } },
         class: { select: { id: true, name: true, grade: true } },
         student: { select: { id: true, user: { select: { name: true } } } },
-        _count: { select: { recipients: true, conversations: true } },
+        _count: { select: { conversations: true } },
+        recipients: {
+          where: { provider: "PLATFORM" },
+          select: { readAt: true, confirmedAt: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     })
 
-    return announcements.map((a) => ({
-      id: a.id,
-      title: a.title,
-      content: a.content,
-      category: a.category,
-      audienceType: a.audienceType,
-      class: a.class,
-      student: a.student,
-      creator: a.creator,
-      allowReplies: a.allowReplies,
-      notifyViaWhatsapp: a.notifyViaWhatsapp,
-      publishedAt: a.publishedAt,
-      createdAt: a.createdAt,
-      totalRecipients: a._count.recipients,
-      totalConversations: a._count.conversations,
-    }))
+    return announcements.map((a) => {
+      const totalRecipients = a.recipients.length
+      const totalRead = a.recipients.filter((r) => r.readAt !== null).length
+      const totalConfirmed = a.recipients.filter((r) => r.confirmedAt !== null).length
+
+      return {
+        id: a.id,
+        title: a.title,
+        content: a.content,
+        category: a.category,
+        audienceType: a.audienceType,
+        class: a.class,
+        student: a.student,
+        creator: a.creator,
+        allowReplies: a.allowReplies,
+        requiresConfirmation: a.requiresConfirmation,
+        notifyViaWhatsapp: a.notifyViaWhatsapp,
+        publishedAt: a.publishedAt,
+        createdAt: a.createdAt,
+        totalRecipients,
+        totalRead,
+        totalConfirmed,
+        totalConversations: a._count.conversations,
+      }
+    })
   },
 
   async listForParent(userId: string) {
@@ -74,10 +88,12 @@ export const AnnouncementService = {
       publishedAt: r.announcement.publishedAt,
       createdAt: r.announcement.createdAt,
       allowReplies: r.announcement.allowReplies,
+      requiresConfirmation: r.announcement.requiresConfirmation,
       notifyViaWhatsapp: r.announcement.notifyViaWhatsapp,
       provider: r.provider,
       status: r.status,
       readAt: r.readAt,
+      confirmedAt: r.confirmedAt,
       deliveredAt: r.deliveredAt,
       unread: r.readAt === null,
     }))
@@ -93,6 +109,7 @@ export const AnnouncementService = {
       category,
       notifyViaWhatsapp = false,
       allowReplies = true,
+      requiresConfirmation = false,
     } = body
 
     // Validations
@@ -198,6 +215,7 @@ export const AnnouncementService = {
           title: String(title).trim(),
           content: messageBody,
           allowReplies: Boolean(allowReplies),
+          requiresConfirmation: Boolean(requiresConfirmation),
           notifyViaWhatsapp: Boolean(notifyViaWhatsapp),
           publishedAt: now,
         },
@@ -282,6 +300,7 @@ export const AnnouncementService = {
         classId: result.classId,
         studentId: result.studentId,
         allowReplies: result.allowReplies,
+        requiresConfirmation: result.requiresConfirmation,
         notifyViaWhatsapp: result.notifyViaWhatsapp,
         publishedAt: result.publishedAt,
         createdAt: result.createdAt,
@@ -322,6 +341,73 @@ export const AnnouncementService = {
     }
 
     return { message: "Comunicado marcado como lido" }
+  },
+
+  async confirm(userId: string, announcementId: string) {
+    const announcement = await prisma.announcement.findUnique({
+      where: { id: announcementId },
+      select: { requiresConfirmation: true },
+    })
+    if (!announcement) {
+      throw new ApiError(404, "Comunicado não encontrado")
+    }
+    if (!announcement.requiresConfirmation) {
+      throw new ApiError(400, "Este comunicado não exige confirmação")
+    }
+
+    const now = new Date()
+    const updated = await prisma.announcementRecipient.updateMany({
+      where: { announcementId, userId, confirmedAt: null },
+      data: { confirmedAt: now, status: "CONFIRMED" },
+    })
+
+    if (updated.count === 0) {
+      const exists = await prisma.announcementRecipient.findFirst({
+        where: { announcementId, userId },
+      })
+      if (!exists) {
+        throw new ApiError(403, "Você não é destinatário deste comunicado")
+      }
+      return { message: "Comunicado já confirmado" }
+    }
+
+    // Auto-mark as read if not already
+    await prisma.announcementRecipient.updateMany({
+      where: { announcementId, userId, readAt: null },
+      data: { readAt: now },
+    })
+
+    return { message: "Leitura confirmada" }
+  },
+
+  async getRecipientDetails(announcementId: string, schoolId: string) {
+    const announcement = await prisma.announcement.findFirst({
+      where: { id: announcementId, schoolId },
+      select: { id: true, requiresConfirmation: true },
+    })
+    if (!announcement) {
+      throw new ApiError(404, "Comunicado não encontrado")
+    }
+
+    const recipients = await prisma.announcementRecipient.findMany({
+      where: { announcementId, provider: "PLATFORM" },
+      include: {
+        user: { select: { id: true, name: true, avatar: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    })
+
+    return {
+      requiresConfirmation: announcement.requiresConfirmation,
+      recipients: recipients.map((r) => ({
+        userId: r.user.id,
+        name: r.user.name,
+        avatar: r.user.avatar,
+        status: r.status,
+        readAt: r.readAt,
+        confirmedAt: r.confirmedAt,
+      })),
+    }
   },
 
   async reply(user: AuthUser, announcementId: string, message: string) {
