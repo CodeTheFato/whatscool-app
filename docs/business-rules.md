@@ -88,6 +88,11 @@
 | Só staff altera status de conversa | Role check: ADMIN/SECRETARY/TEACHER |
 | Parent não cria conversas | Só pode responder comunicados ou participar de conversas criadas por staff |
 | Dual tracking de entrega | WhatsApp ativado → 2 AnnouncementRecipients (PLATFORM + WHATSAPP) |
+| Visualização automática | Abrir comunicado marca readAt automaticamente (zero fricção) |
+| Confirmação opcional | Staff pode exigir confirmação manual por comunicado (requiresConfirmation) |
+| Tracking é PLATFORM-only | Stats de visualização/confirmação contam apenas provider=PLATFORM |
+| Pais não veem tracking de outros | Painel de rastreabilidade é exclusivo do staff |
+| Atividades sempre criam recipients | sendToParents=true por padrão, garantindo tracking de visualização |
 | SQS best-effort | Falha no SQS não impede criação na plataforma |
 | Polling a cada 5 segundos | Frontend faz GET /poll com lastMessageId |
 

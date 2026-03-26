@@ -26,6 +26,7 @@ O core do WhatSchool é comunicação escolar. O sistema tem dois pilares:
 | content | Text | Corpo da mensagem |
 | allow_replies | Boolean | Responsáveis podem responder? (default: true) |
 | notify_via_whatsapp | Boolean | Enviar também por WhatsApp? (default: false) |
+| requires_confirmation | Boolean | Exige confirmação manual de leitura? (default: false) |
 | published_at | DateTime? | Data de publicação |
 | created_at | DateTime | — |
 | updated_at | DateTime | — |
@@ -64,13 +65,16 @@ Uma entrada por destinatário **por provedor**. Se `notifyViaWhatsapp=true`, o m
 | sent_at | DateTime? | Quando foi enviado |
 | delivered_at | DateTime? | Confirmação de entrega |
 | read_at | DateTime? | Quando foi lido |
+| confirmed_at | DateTime? | Quando confirmou leitura (se requiresConfirmation) |
 | provider_message_id | String? | ID no provedor externo |
 | error_code | String? | Código de erro |
 | error_message | String? | Mensagem de erro |
 
 **Unique:** `(announcement_id, user_id, provider)` — um registro por provedor por destinatário.
 
-**DeliveryStatus flow:** `PENDING → SENT → DELIVERED → READ` (ou `FAILED`)
+**DeliveryStatus flow:** `PENDING → SENT → DELIVERED → READ → CONFIRMED` (ou `FAILED`)
+
+> `CONFIRMED` só é usado quando `requiresConfirmation=true`. Ver [view-tracking.md](./view-tracking.md) para detalhes.
 
 ### `conversations` (Threads de chat)
 
@@ -273,7 +277,9 @@ AnnouncementService.create() (notifyViaWhatsapp=true)
 | `listForStaff(schoolId)` | ADMIN, SECRETARY, TEACHER | Lista todos os comunicados da escola |
 | `listForParent(userId)` | PARENT | Lista comunicados onde é destinatário |
 | `create(user, data)` | ADMIN, SECRETARY, TEACHER | Cria comunicado + recipients + SQS |
-| `markRead(userId, announcementId)` | PARENT | Marca como lido (status → READ) |
+| `markRead(userId, announcementId)` | PARENT | Marca como visualizado (status → READ) |
+| `confirm(userId, announcementId)` | PARENT | Confirma leitura (status → CONFIRMED) |
+| `getRecipientDetails(schoolId, announcementId)` | STAFF | Lista destinatários com status de visualização/confirmação |
 | `reply(user, announcementId, message)` | PARENT | Responde comunicado (lazy conversation) |
 
 ### ConversationService (`src/lib/services/conversation.service.ts`)
